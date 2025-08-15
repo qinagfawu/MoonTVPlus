@@ -12,6 +12,7 @@ const STORAGE_TYPE =
     | 'localstorage'
     | 'redis'
     | 'upstash'
+    | 'kvrocks'
     | undefined) || 'localstorage';
 
 // 生成签名

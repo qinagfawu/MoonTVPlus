@@ -2,13 +2,13 @@
 
 import { BaseRedisStorage } from './redis-base.db';
 
-export class RedisStorage extends BaseRedisStorage {
+export class KvrocksStorage extends BaseRedisStorage {
   constructor() {
     const config = {
-      url: process.env.REDIS_URL!,
-      clientName: 'Redis'
+      url: process.env.KVROCKS_URL!,
+      clientName: 'Kvrocks'
     };
-    const globalSymbol = Symbol.for('__MOONTV_REDIS_CLIENT__');
+    const globalSymbol = Symbol.for('__MOONTV_KVROCKS_CLIENT__');
     super(config, globalSymbol);
   }
 }
