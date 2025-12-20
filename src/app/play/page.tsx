@@ -2932,6 +2932,13 @@ function PlayPageClient() {
         // iOS需要等待DOM完全清理
         await new Promise(resolve => setTimeout(resolve, 100));
 
+        // 双重检查：如果旧播放器仍然存在，再次清理
+        if (artPlayerRef.current) {
+          console.warn('旧播放器仍存在，再次清理');
+          cleanupPlayer();
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
         // 再次确保容器为空
         if (artRef.current) {
           artRef.current.innerHTML = '';
@@ -3560,13 +3567,24 @@ function PlayPageClient() {
                             (window.navigator as any).standalone === true;
 
               // 检查是否已经在原生全屏状态
-              const isInNativeFullscreen = document.fullscreenElement !== null;
+              const isInNativeFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
 
               // 如果已经在原生全屏状态，退出原生全屏
               if (isInNativeFullscreen) {
-                document.exitFullscreen().catch((err: Error) => {
-                  console.error('退出全屏失败:', err);
-                });
+                const exitFullscreen = (document as any).exitFullscreen ||
+                                      (document as any).webkitExitFullscreen ||
+                                      (document as any).mozCancelFullScreen ||
+                                      (document as any).msExitFullscreen;
+                if (exitFullscreen) {
+                  try {
+                    const result = exitFullscreen.call(document);
+                    if (result && typeof result.catch === 'function') {
+                      result.catch((err: Error) => console.error('退出全屏失败:', err));
+                    }
+                  } catch (err) {
+                    console.error('退出全屏失败:', err);
+                  }
+                }
                 return;
               }
 
