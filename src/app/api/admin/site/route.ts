@@ -69,9 +69,6 @@ export async function POST(request: NextRequest) {
       OIDCClientSecret,
       OIDCButtonText,
       OIDCMinTrustLevel,
-      TuneHubEnabled,
-      TuneHubBaseUrl,
-      TuneHubApiKey,
     } = body as {
       SiteName: string;
       Announcement: string;
@@ -113,9 +110,6 @@ export async function POST(request: NextRequest) {
       OIDCClientSecret?: string;
       OIDCButtonText?: string;
       OIDCMinTrustLevel?: number;
-      TuneHubEnabled?: boolean;
-      TuneHubBaseUrl?: string;
-      TuneHubApiKey?: string;
     };
 
     // 参数校验
@@ -156,10 +150,7 @@ export async function POST(request: NextRequest) {
       (OIDCClientId !== undefined && typeof OIDCClientId !== 'string') ||
       (OIDCClientSecret !== undefined && typeof OIDCClientSecret !== 'string') ||
       (OIDCButtonText !== undefined && typeof OIDCButtonText !== 'string') ||
-      (OIDCMinTrustLevel !== undefined && typeof OIDCMinTrustLevel !== 'number') ||
-      (TuneHubEnabled !== undefined && typeof TuneHubEnabled !== 'boolean') ||
-      (TuneHubBaseUrl !== undefined && typeof TuneHubBaseUrl !== 'string') ||
-      (TuneHubApiKey !== undefined && typeof TuneHubApiKey !== 'string')
+      (OIDCMinTrustLevel !== undefined && typeof OIDCMinTrustLevel !== 'number')
     ) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -216,9 +207,6 @@ export async function POST(request: NextRequest) {
       OIDCClientSecret,
       OIDCButtonText,
       OIDCMinTrustLevel,
-      TuneHubEnabled,
-      TuneHubBaseUrl,
-      TuneHubApiKey,
     };
 
     // 写入数据库

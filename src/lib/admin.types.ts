@@ -56,10 +56,6 @@ export interface AdminConfig {
     OIDCClientSecret?: string; // OIDC Client Secret
     OIDCButtonText?: string; // OIDC登录按钮文字
     OIDCMinTrustLevel?: number; // 最低信任等级（仅LinuxDo网站有效，为0时不判断）
-    // TuneHub音乐配置
-    TuneHubEnabled?: boolean; // 启用音乐功能
-    TuneHubBaseUrl?: string; // TuneHub API地址
-    TuneHubApiKey?: string; // TuneHub API Key
   };
   UserConfig: {
     Users: {
@@ -239,6 +235,18 @@ export interface AdminConfig {
       apiKey: string; // Resend API Key
       from: string; // 发件人邮箱
     };
+  };
+  MusicConfig?: {
+    // TuneHub音乐配置
+    TuneHubEnabled?: boolean; // 启用音乐功能
+    TuneHubBaseUrl?: string; // TuneHub API地址
+    TuneHubApiKey?: string; // TuneHub API Key
+    // OpenList缓存配置
+    OpenListCacheEnabled?: boolean; // 启用OpenList缓存
+    OpenListCacheURL?: string; // OpenList服务器地址
+    OpenListCacheUsername?: string; // OpenList用户名
+    OpenListCachePassword?: string; // OpenList密码
+    OpenListCachePath?: string; // OpenList缓存目录路径
   };
 }
 

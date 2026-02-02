@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
+import { OpenListClient } from '@/lib/openlist.client';
 
 export const runtime = 'nodejs';
 
@@ -13,19 +14,193 @@ const serverCache = {
   CACHE_DURATION: 24 * 60 * 60 * 1000, // 24小时缓存
 };
 
+// 正在下载的音频任务追踪（防止重复下载）
+const downloadingTasks = new Map<string, Promise<void>>();
+
 // 获取 TuneHub 配置
 async function getTuneHubConfig() {
   const config = await getConfig();
-  const siteConfig = config?.SiteConfig;
+  const musicConfig = config?.MusicConfig;
 
-  const enabled = siteConfig?.TuneHubEnabled ?? false;
+  const enabled = musicConfig?.TuneHubEnabled ?? false;
   const baseUrl =
-    siteConfig?.TuneHubBaseUrl ||
+    musicConfig?.TuneHubBaseUrl ||
     process.env.TUNEHUB_BASE_URL ||
     'https://tunehub.sayqz.com/api';
-  const apiKey = siteConfig?.TuneHubApiKey || process.env.TUNEHUB_API_KEY || '';
+  const apiKey = musicConfig?.TuneHubApiKey || process.env.TUNEHUB_API_KEY || '';
 
-  return { enabled, baseUrl, apiKey };
+  return { enabled, baseUrl, apiKey, musicConfig };
+}
+
+// 获取 OpenList 客户端
+async function getOpenListClient(): Promise<OpenListClient | null> {
+  const config = await getConfig();
+  const musicConfig = config?.MusicConfig;
+
+  console.log('[Music OpenList] 配置检查:', {
+    enabled: musicConfig?.OpenListCacheEnabled,
+    hasURL: !!musicConfig?.OpenListCacheURL,
+    hasUsername: !!musicConfig?.OpenListCacheUsername,
+    hasPassword: !!musicConfig?.OpenListCachePassword,
+  });
+
+  if (!musicConfig?.OpenListCacheEnabled) {
+    console.warn('[Music OpenList] OpenList 缓存未启用');
+    return null;
+  }
+
+  const url = musicConfig.OpenListCacheURL;
+  const username = musicConfig.OpenListCacheUsername;
+  const password = musicConfig.OpenListCachePassword;
+
+  if (!url || !username || !password) {
+    console.warn('[Music OpenList] 配置不完整，跳过 OpenList 缓存');
+    return null;
+  }
+
+  console.log('[Music OpenList] 创建 OpenList 客户端:', url);
+  return new OpenListClient(url, username, password);
+}
+
+// 异步下载音频文件并上传到 OpenList
+async function cacheAudioToOpenList(
+  openListClient: OpenListClient,
+  audioUrl: string,
+  platform: string,
+  songId: string,
+  quality: string,
+  cachePath: string
+): Promise<void> {
+  const taskKey = `${platform}-${songId}-${quality}`;
+
+  // 检查是否已经有任务在下载
+  const existingTask = downloadingTasks.get(taskKey);
+  if (existingTask) {
+    console.log('[Music Cache] 该音频正在下载中，跳过重复任务:', taskKey);
+    return existingTask;
+  }
+
+  // 创建下载任务
+  const downloadTask = (async () => {
+    try {
+      const audioPath = `${cachePath}/${platform}/audio/${songId}-${quality}.mp3`;
+
+      console.log('[Music Cache] 开始下载音频:', audioUrl);
+      const audioResponse = await fetch(audioUrl);
+
+      if (!audioResponse.ok) {
+        console.error('[Music Cache] 下载音频失败:', audioResponse.status);
+        return;
+      }
+
+      const audioBuffer = await audioResponse.arrayBuffer();
+      const audioBlob = Buffer.from(audioBuffer);
+
+      console.log('[Music Cache] 音频下载完成，大小:', audioBlob.length, 'bytes');
+      console.log('[Music Cache] 开始上传到 OpenList:', audioPath);
+
+      // OpenList 的 uploadFile 方法需要字符串，但我们需要上传二进制文件
+      // 使用 PUT 方法直接上传
+      const token = await (openListClient as any).getToken();
+      console.log('[Music Cache] 获取到 Token，开始上传请求');
+
+      const uploadResponse = await fetch(`${(openListClient as any).baseURL}/api/fs/put`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'audio/mpeg',
+          'File-Path': encodeURIComponent(audioPath),
+          'As-Task': 'false',
+        },
+        body: audioBlob,
+      });
+
+      console.log('[Music Cache] 上传响应状态:', uploadResponse.status);
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('[Music Cache] 上传音频失败:', uploadResponse.status, errorText);
+        return;
+      }
+
+      const responseData = await uploadResponse.json();
+      console.log('[Music Cache] 上传响应数据:', responseData);
+      console.log('[Music Cache] 音频成功缓存到 OpenList:', audioPath);
+    } catch (error) {
+      console.error('[Music Cache] 缓存音频到 OpenList 失败:', error);
+    } finally {
+      // 任务完成后从追踪中移除
+      downloadingTasks.delete(taskKey);
+    }
+  })();
+
+  // 将任务添加到追踪
+  downloadingTasks.set(taskKey, downloadTask);
+
+  return downloadTask;
+}
+
+// 检查并替换音频 URL 为 OpenList URL
+async function replaceAudioUrlsWithOpenList(
+  data: any,
+  openListClient: OpenListClient | null,
+  platform: string,
+  quality: string,
+  cachePath: string
+): Promise<any> {
+  if (!openListClient || !data?.data) {
+    console.log('[Music Cache] 跳过音频替换:', { hasClient: !!openListClient, hasData: !!data?.data });
+    return data;
+  }
+
+  // TuneHub 返回的数据结构是 { code: 0, data: { data: [...], total: 1 } }
+  // 需要提取内层的 data 数组
+  const songsData = data.data.data || data.data;
+  const songs = Array.isArray(songsData) ? songsData : [songsData];
+
+  console.log('[Music Cache] 开始处理', songs.length, '首歌曲');
+
+  for (const song of songs) {
+    if (!song?.id || !song?.url) {
+      console.log('[Music Cache] 跳过无效歌曲:', song);
+      continue;
+    }
+
+    const audioPath = `${cachePath}/${platform}/audio/${song.id}-${quality}.mp3`;
+
+    try {
+      // 检查 OpenList 是否有这个音频文件
+      const fileResponse = await openListClient.getFile(audioPath);
+
+      if (fileResponse.code === 200 && fileResponse.data?.raw_url) {
+        console.log('[Music Cache] 使用 OpenList 缓存的音频:', audioPath);
+        song.url = fileResponse.data.raw_url;
+        song.cached = true; // 标记为已缓存
+      } else {
+        // OpenList 返回非200，说明文件不存在，开始下载
+        console.log('[Music Cache] OpenList 无缓存（code:', fileResponse.code, '），异步下载音频');
+        song.cached = false;
+
+        // 异步上传，不阻塞响应
+        cacheAudioToOpenList(openListClient, song.url, platform, song.id, quality, cachePath)
+          .catch(error => {
+            console.error('[Music Cache] 异步缓存音频失败:', error);
+          });
+      }
+    } catch (error) {
+      // getFile 抛出异常，也说明文件不存在或网络错误
+      console.log('[Music Cache] 检查 OpenList 音频缓存失败:', error);
+      song.cached = false;
+
+      // 即使检查失败，也尝试下载
+      cacheAudioToOpenList(openListClient, song.url, platform, song.id, quality, cachePath)
+        .catch(err => {
+          console.error('[Music Cache] 异步缓存音频失败:', err);
+        });
+    }
+  }
+
+  return data;
 }
 
 // 通用请求处理函数
@@ -392,13 +567,49 @@ export async function POST(request: NextRequest) {
         const qualityKey = quality || '320k';
         const idsKey = Array.isArray(ids) ? ids.join(',') : ids;
         const cacheKey = `parse-${platform}-${idsKey}-${qualityKey}`;
-        const cached = serverCache.proxyRequests.get(cacheKey);
 
+        // 1. 先检查内存缓存
+        const cached = serverCache.proxyRequests.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < serverCache.CACHE_DURATION) {
+          console.log('[Music Cache] 从内存缓存返回');
           return NextResponse.json(cached.data);
         }
 
+        // 2. 检查 OpenList 缓存
+        const openListClient = await getOpenListClient();
+        const config = await getConfig();
+        const cachePath = config?.MusicConfig?.OpenListCachePath || '/music-cache';
+
+        console.log('[Music Cache] OpenList 客户端状态:', openListClient ? '已创建' : '未创建');
+        console.log('[Music Cache] 缓存路径:', cachePath);
+
+        if (openListClient) {
+          try {
+            const openListPath = `${cachePath}/${platform}/${idsKey}-${qualityKey}.json`;
+            console.log('[Music Cache] 尝试从 OpenList 读取:', openListPath);
+
+            const fileResponse = await openListClient.getFile(openListPath);
+            if (fileResponse.code === 200 && fileResponse.data?.raw_url) {
+              // 下载缓存文件
+              const cacheResponse = await fetch(fileResponse.data.raw_url);
+              if (cacheResponse.ok) {
+                const cachedData = await cacheResponse.json();
+                console.log('[Music Cache] 从 OpenList 缓存返回');
+
+                // 更新内存缓存
+                serverCache.proxyRequests.set(cacheKey, { data: cachedData, timestamp: Date.now() });
+
+                return NextResponse.json(cachedData);
+              }
+            }
+          } catch (error) {
+            console.log('[Music Cache] OpenList 缓存未命中或读取失败:', error);
+          }
+        }
+
+        // 3. 调用 TuneHub API 解析
         try {
+          console.log('[Music Cache] 调用 TuneHub API 解析');
           const response = await proxyRequest(`${baseUrl}/v1/parse`, {
             method: 'POST',
             headers: {
@@ -424,10 +635,32 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          // 缓存成功的解析结果
+          // 4. 缓存成功的解析结果到内存
           serverCache.proxyRequests.set(cacheKey, { data, timestamp: Date.now() });
 
-          return NextResponse.json(data);
+          // 5. 检查并替换音频 URL 为 OpenList URL（如果已缓存）
+          // 同时异步下载未缓存的音频
+          const finalData = await replaceAudioUrlsWithOpenList(
+            data,
+            openListClient,
+            platform,
+            qualityKey,
+            cachePath
+          );
+
+          // 6. 缓存解析结果到 OpenList（异步，不阻塞响应）
+          if (openListClient) {
+            const jsonPath = `${cachePath}/${platform}/${idsKey}-${qualityKey}.json`;
+            openListClient.uploadFile(jsonPath, JSON.stringify(finalData, null, 2))
+              .then(() => {
+                console.log('[Music Cache] 成功缓存解析结果到 OpenList:', jsonPath);
+              })
+              .catch((error) => {
+                console.error('[Music Cache] 缓存解析结果到 OpenList 失败:', error);
+              });
+          }
+
+          return NextResponse.json(finalData);
         } catch (error) {
           console.error('解析歌曲失败:', error);
           return NextResponse.json({

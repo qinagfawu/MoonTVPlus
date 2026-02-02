@@ -136,7 +136,7 @@ export default async function RootLayout({
     // 自定义去广告代码版本号
     customAdFilterVersion = config.SiteConfig?.CustomAdFilterVersion || 0;
     // TuneHub音乐功能配置
-    tuneHubEnabled = config.SiteConfig?.TuneHubEnabled || false;
+    tuneHubEnabled = config.MusicConfig?.TuneHubEnabled || false;
     // 检查是否启用了 OpenList 功能
     openListEnabled = !!(
       config.OpenListConfig?.Enabled &&
