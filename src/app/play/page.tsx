@@ -8097,7 +8097,7 @@ function PlayPageClient() {
       )}
 
       {/* AI问片面板 */}
-      {aiEnabled && showAIChat && detail && (
+      {aiEnabled && detail && (
         <AIChatPanel
           isOpen={showAIChat}
           onClose={() => setShowAIChat(false)}
