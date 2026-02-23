@@ -110,6 +110,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [searchFavorited, setSearchFavorited] = useState<boolean | null>(null); // 搜索结果的收藏状态
   const [showAIChat, setShowAIChat] = useState(false);
+  const [isAIStreaming, setIsAIStreaming] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiDefaultMessageWithVideo, setAiDefaultMessageWithVideo] = useState('');
   const [showDetailPanel, setShowDetailPanel] = useState(false);
@@ -1490,11 +1491,12 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
         }}
       />
 
-      {/* AI问片面板 */}
-      {aiEnabled && showAIChat && (
+      {/* AI问片面板 - 只在打开或正在流式响应时渲染 */}
+      {aiEnabled && (showAIChat || isAIStreaming) && (
         <AIChatPanel
           isOpen={showAIChat}
           onClose={() => setShowAIChat(false)}
+          onStreamingChange={setIsAIStreaming}
           context={{
             title: actualTitle,
             year: actualYear,

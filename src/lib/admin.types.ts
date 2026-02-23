@@ -115,6 +115,10 @@ export interface AdminConfig {
     cacheVersion: number; // CSS版本号（用于缓存控制）
     loginBackgroundImage?: string; // 登录界面背景图
     registerBackgroundImage?: string; // 注册界面背景图
+    // 进度条图标配置
+    progressThumbType?: 'default' | 'preset' | 'custom'; // 图标类型
+    progressThumbPresetId?: string; // 预制图标ID
+    progressThumbCustomUrl?: string; // 自定义图标URL
   };
   OpenListConfig?: {
     Enabled: boolean; // 是否启用私人影库功能
@@ -248,6 +252,21 @@ export interface AdminConfig {
     OpenListCachePassword?: string; // OpenList密码
     OpenListCachePath?: string; // OpenList缓存目录路径
     OpenListCacheProxyEnabled?: boolean; // 启用缓存代理返回（默认开启）
+  };
+  AnimeSubscriptionConfig?: {
+    Enabled: boolean; // 是否启用追番功能
+    Subscriptions: Array<{
+      id: string;
+      title: string;
+      filterText: string;
+      source: 'acgrip' | 'mikan' | 'dmhy';
+      enabled: boolean;
+      lastCheckTime: number;
+      lastEpisode: number;
+      createdAt: number;
+      updatedAt: number;
+      createdBy: string;
+    }>;
   };
 }
 

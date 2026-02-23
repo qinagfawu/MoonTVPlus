@@ -11,6 +11,29 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "213.0.0",
+    date: "2026-02-24",
+    added: [
+    "私人影库增加追番订阅功能",
+    "新增进度条图标自定义",
+    "新增下载任务数设置",
+    "播放页面显示详情按钮",
+    "详情面板增加演员数据",
+    "继续播放增加剧集更新提示",
+    "tvbox订阅增加默认jar包",
+    "定时任务增加冷却"
+    ],
+    changed: [
+    "详情面板支持切换数据源",
+    "AI问片关闭弹窗不中断",
+    "定时任务性能优化，支持并发处理"
+    ],
+    fixed: [
+    "修复通知已读不更新菜单状态",
+    "修正生态应用selene下载链接"
+    ]
+  },
+  {
     version: "212.2.0",
     date: "2026-02-13",
     added: [

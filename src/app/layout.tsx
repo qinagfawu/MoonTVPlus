@@ -70,6 +70,9 @@ export default async function RootLayout({
   let xiaoyaEnabled = false;
   let loginBackgroundImage = '';
   let registerBackgroundImage = '';
+  let progressThumbType = 'default';
+  let progressThumbPresetId = '';
+  let progressThumbCustomUrl = '';
   let enableRegistration = false;
   let loginRequireTurnstile = false;
   let registrationRequireTurnstile = false;
@@ -115,6 +118,9 @@ export default async function RootLayout({
     tmdbApiKey = config.SiteConfig.TMDBApiKey || '';
     loginBackgroundImage = config.ThemeConfig?.loginBackgroundImage || '';
     registerBackgroundImage = config.ThemeConfig?.registerBackgroundImage || '';
+    progressThumbType = config.ThemeConfig?.progressThumbType || 'default';
+    progressThumbPresetId = config.ThemeConfig?.progressThumbPresetId || '';
+    progressThumbCustomUrl = config.ThemeConfig?.progressThumbCustomUrl || '';
     enableRegistration = config.SiteConfig.EnableRegistration || false;
     loginRequireTurnstile = config.SiteConfig.LoginRequireTurnstile || false;
     registrationRequireTurnstile = config.SiteConfig.RegistrationRequireTurnstile || false;
@@ -178,6 +184,9 @@ export default async function RootLayout({
     PRIVATE_LIBRARY_ENABLED: openListEnabled || embyEnabled || xiaoyaEnabled,
     LOGIN_BACKGROUND_IMAGE: loginBackgroundImage,
     REGISTER_BACKGROUND_IMAGE: registerBackgroundImage,
+    PROGRESS_THUMB_TYPE: progressThumbType,
+    PROGRESS_THUMB_PRESET_ID: progressThumbPresetId,
+    PROGRESS_THUMB_CUSTOM_URL: progressThumbCustomUrl,
     ENABLE_REGISTRATION: enableRegistration,
     LOGIN_REQUIRE_TURNSTILE: loginRequireTurnstile,
     REGISTRATION_REQUIRE_TURNSTILE: registrationRequireTurnstile,
