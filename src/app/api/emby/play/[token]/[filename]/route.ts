@@ -78,6 +78,7 @@ export async function GET(
 
     // 构建 Emby 原始播放链接（强制获取直接URL，避免代理循环）
     let embyStreamUrl = await client.getStreamUrl(itemId, true, true);
+	console.log(embyStreamUrl)
 
     // 构建请求头，转发 Range 请求，并添加自定义 User-Agent
     const requestHeaders: HeadersInit = {
