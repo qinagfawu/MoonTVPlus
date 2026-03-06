@@ -58,13 +58,27 @@ export async function GET(
     // 更新最后执行时间
     lastExecutionTime = now;
 
-    cronJob();
+    // 环境变量控制是否等待定时任务完全结束后再返回响应（默认 false）
+    // 用于防止 Vercel 等平台杀后台进程
+    const waitForCompletion = process.env.CRON_WAIT_FOR_COMPLETION === 'true';
 
-    return NextResponse.json({
-      success: true,
-      message: 'Cron job executed successfully',
-      timestamp: new Date().toISOString(),
-    });
+    if (waitForCompletion) {
+      // 等待定时任务完成后再返回 200
+      await cronJob();
+      return NextResponse.json({
+        success: true,
+        message: 'Cron job executed successfully',
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // 立即返回 202，定时任务在后台执行
+      cronJob();
+      return NextResponse.json({
+        success: true,
+        message: 'Cron job accepted and running in background',
+        timestamp: new Date().toISOString(),
+      }, { status: 202 });
+    }
   } catch (error) {
     console.error('Cron job failed:', error);
 

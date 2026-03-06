@@ -339,6 +339,7 @@ dockge/komodo 等 docker compose UI 也有自动更新功能
 | USERNAME                                 | 站长账号                                                     | 任意字符串                  | 无默认，必填字段                                             |
 | PASSWORD                                 | 站长密码                                                     | 任意字符串                  | 无默认，必填字段                                             |
 | CRON_PASSWORD                            | 定时任务 API 访问密码（用于保护 /api/cron 端点）             | 任意字符串                  | mtvpls                                                       |
+| CRON_WAIT_FOR_COMPLETION                 | 定时任务接口是否等待任务完全结束后再返回响应（true 时返回 200，false 时立即返回 202） | true/false                  | false                                                        |
 | CRON_USER_BATCH_SIZE                     | 定时任务用户批处理大小（控制并发处理的用户数量，影响播放记录和收藏更新任务的并发性能） | 正整数                      | 3                                                            |
 | SITE_BASE                                | 站点 url                                                     | 形如 https://example.com    | 空                                                           |
 | NEXT_PUBLIC_SITE_NAME                    | 站点名称                                                     | 任意字符串                  | MoonTV                                                       |
@@ -377,6 +378,7 @@ dockge/komodo 等 docker compose UI 也有自动更新功能
 | TMDB_REVERSE_PROXY                       | TMDB 反向代理地址                                            | URL                         | (空)                                                         |
 | DANMAKU_API_BASE                         | 弹幕 API 地址                                                | URL                         | http://localhost:9321                                        |
 | DANMAKU_API_TOKEN                        | 弹幕 API Token                                               | 任意字符串                  | 87654321                                                     |
+| DATA_MIGRATION_CHUNK_SIZE                | 数据迁移批处理大小（控制导入导出时每批处理的用户数量和数据条数） | 正整数                      | 10                                                           |
 
 NEXT_PUBLIC_DOUBAN_PROXY_TYPE 选项解释：
 

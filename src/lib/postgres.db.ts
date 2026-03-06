@@ -911,6 +911,52 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  // ==================== TVBox订阅token ====================
+
+  async getTvboxSubscribeToken(userName: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT tvbox_subscribe_token FROM users_v2 WHERE username = $1')
+        .bind(userName)
+        .first();
+
+      return result?.tvbox_subscribe_token || null;
+    } catch (err) {
+      console.error('PostgresStorage.getTvboxSubscribeToken error:', err);
+      return null;
+    }
+  }
+
+  async setTvboxSubscribeToken(userName: string, token: string): Promise<void> {
+    try {
+      await this.db
+        .prepare('UPDATE users_v2 SET tvbox_subscribe_token = $1 WHERE username = $2')
+        .bind(token, userName)
+        .run();
+
+      // 清除用户信息缓存
+      const { userInfoCache } = await import('./user-cache');
+      userInfoCache.delete(userName);
+    } catch (err) {
+      console.error('PostgresStorage.setTvboxSubscribeToken error:', err);
+      throw err;
+    }
+  }
+
+  async getUsernameByTvboxToken(token: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT username FROM users_v2 WHERE tvbox_subscribe_token = $1')
+        .bind(token)
+        .first();
+
+      return result?.username || null;
+    } catch (err) {
+      console.error('PostgresStorage.getUsernameByTvboxToken error:', err);
+      return null;
+    }
+  }
+
   // ==================== 音乐播放记录 ====================
 
   async getMusicPlayRecord(userName: string, key: string): Promise<any | null> {

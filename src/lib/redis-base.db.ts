@@ -1723,4 +1723,35 @@ export abstract class BaseRedisStorage implements IStorage {
     // 清除缓存
     userInfoCache?.delete(userName);
   }
+
+  // ---------- TVBox订阅token相关 ----------
+  async getTvboxSubscribeToken(userName: string): Promise<string | null> {
+    // 直接从数据库读取，不使用缓存
+    const token = await this.withRetry(() =>
+      this.adapter.hGet(this.userInfoKey(userName), 'tvboxSubscribeToken')
+    );
+    return token || null;
+  }
+
+  async setTvboxSubscribeToken(userName: string, token: string): Promise<void> {
+    // 保存token到用户信息
+    await this.withRetry(() =>
+      this.adapter.hSet(this.userInfoKey(userName), 'tvboxSubscribeToken', token)
+    );
+
+    // 创建token到用户名的反向索引
+    await this.withRetry(() =>
+      this.adapter.set(`tvbox:token:${token}`, userName)
+    );
+
+    // 清除缓存
+    userInfoCache?.delete(userName);
+  }
+
+  async getUsernameByTvboxToken(token: string): Promise<string | null> {
+    const userName = await this.withRetry(() =>
+      this.adapter.get(`tvbox:token:${token}`)
+    );
+    return userName || null;
+  }
 }

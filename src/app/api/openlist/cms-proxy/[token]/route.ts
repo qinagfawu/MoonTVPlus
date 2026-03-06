@@ -30,9 +30,27 @@ export async function GET(
 
   // 验证 TVBox Token（从路径中获取）
   const requestToken = params.token;
-  const subscribeToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
+  const globalToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
 
-  if (!subscribeToken || requestToken !== subscribeToken) {
+  // 检查是否是全局token或用户token
+  let isValidToken = false;
+  if (globalToken && requestToken === globalToken) {
+    // 全局token
+    isValidToken = true;
+  } else {
+    // 检查是否是用户token
+    const { db } = await import('@/lib/db');
+    const username = await db.getUsernameByTvboxToken(requestToken);
+    if (username) {
+      // 检查用户是否被封禁
+      const userInfo = await db.getUserInfoV2(username);
+      if (userInfo && !userInfo.banned) {
+        isValidToken = true;
+      }
+    }
+  }
+
+  if (!isValidToken) {
     return NextResponse.json(
       {
         code: 401,

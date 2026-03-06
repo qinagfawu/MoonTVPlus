@@ -1485,8 +1485,8 @@ function LivePageClient() {
         return;
       }
 
-      // 如果不是 m3u8 或 flv 类型，设置不支持的类型并返回
-      if (type !== 'm3u8' && type !== 'flv') {
+      // 如果不是 m3u8、flv 或 mp4 类型，设置不支持的类型并返回
+      if (type !== 'm3u8' && type !== 'flv' && type !== 'mp4') {
         setUnsupportedType(type);
         setIsVideoLoading(false);
         return;
@@ -1496,7 +1496,7 @@ function LivePageClient() {
       setUnsupportedType(null);
 
       const customType = { m3u8: m3u8Loader, flv: flvLoader };
-      const targetUrl = type === 'flv'
+      const targetUrl = (type === 'flv' || type === 'mp4')
         ? videoUrl
         : `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
       try {

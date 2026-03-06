@@ -49,7 +49,9 @@ interface CorrectDialogProps {
     seasonName?: string;
   };
   onCorrect: () => void;
-  source?: string; // 新增：视频源类型（xiaoya, openlist等）
+  source?: string;
+  useDrawer?: boolean;
+  drawerWidth?: string;
 }
 
 export default function CorrectDialog({
@@ -59,7 +61,9 @@ export default function CorrectDialog({
   currentTitle,
   currentVideo,
   onCorrect,
-  source = 'openlist', // 默认为 openlist
+  source = 'openlist',
+  useDrawer = false,
+  drawerWidth = 'w-full md:w-[25%]',
 }: CorrectDialogProps) {
   const [searchQuery, setSearchQuery] = useState(currentTitle);
   const [searching, setSearching] = useState(false);
@@ -397,21 +401,20 @@ export default function CorrectDialog({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm'>
-      <div className='bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col m-4'>
-        {/* 头部 */}
-        <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700'>
-          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-            纠错：{currentTitle}
-          </h2>
-          <button
-            onClick={onClose}
-            className='text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-          >
-            <X size={24} />
-          </button>
-        </div>
+  const dialogContent = (
+    <>
+      {/* 头部 */}
+      <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700'>
+        <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+          纠错：{currentTitle}
+        </h2>
+        <button
+          onClick={onClose}
+          className='text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+        >
+          <X size={24} />
+        </button>
+      </div>
 
         {/* 搜索框 */}
         {!showManualInput && (
@@ -810,8 +813,23 @@ export default function CorrectDialog({
             </>
           )}
         </div>
+      </>
+    );
+
+  return createPortal(
+    useDrawer ? (
+      <div className='fixed inset-0 z-[9999] flex items-center justify-end pointer-events-none'>
+        <div className={`relative ${drawerWidth} h-full bg-white dark:bg-gray-800 shadow-2xl flex flex-col pointer-events-auto`}>
+          {dialogContent}
+        </div>
       </div>
-    </div>,
+    ) : (
+      <div className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm'>
+        <div className='bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col m-4'>
+          {dialogContent}
+        </div>
+      </div>
+    ),
     document.body
   );
 }

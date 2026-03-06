@@ -8,7 +8,8 @@ import { SearchResult } from '@/lib/types';
  */
 export async function getEmbyDetail(
   source: string,
-  id: string
+  id: string,
+  proxyToken?: string | null
 ): Promise<SearchResult> {
   const config = await getConfig();
 
@@ -44,7 +45,7 @@ export async function getEmbyDetail(
       source_name: sourceName,
       id: item.Id,
       title: item.Name,
-      poster: client.getImageUrl(item.Id, 'Primary'),
+      poster: client.getImageUrl(item.Id, 'Primary', undefined, client.isProxyEnabled() ? proxyToken || undefined : undefined),
       year: item.ProductionYear?.toString() || '',
       douban_id: 0,
       desc: item.Overview || '',
@@ -76,7 +77,7 @@ export async function getEmbyDetail(
       source_name: sourceName,
       id: item.Id,
       title: item.Name,
-      poster: client.getImageUrl(item.Id, 'Primary'),
+      poster: client.getImageUrl(item.Id, 'Primary', undefined, client.isProxyEnabled() ? proxyToken || undefined : undefined),
       year: item.ProductionYear?.toString() || '',
       douban_id: 0,
       desc: item.Overview || '',

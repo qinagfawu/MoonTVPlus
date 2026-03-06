@@ -1346,6 +1346,51 @@ export class D1Storage implements IStorage {
     }
   }
 
+  // ==================== TVBox订阅token ====================
+
+  async getTvboxSubscribeToken?(userName: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT tvbox_subscribe_token FROM users WHERE username = ?')
+        .bind(userName)
+        .first();
+
+      return result?.tvbox_subscribe_token || null;
+    } catch (err) {
+      console.error('D1Storage.getTvboxSubscribeToken error:', err);
+      return null;
+    }
+  }
+
+  async setTvboxSubscribeToken?(userName: string, token: string): Promise<void> {
+    try {
+      await this.db
+        .prepare('UPDATE users SET tvbox_subscribe_token = ? WHERE username = ?')
+        .bind(token, userName)
+        .run();
+
+      // 清除缓存
+      userInfoCache?.delete(userName);
+    } catch (err) {
+      console.error('D1Storage.setTvboxSubscribeToken error:', err);
+      throw err;
+    }
+  }
+
+  async getUsernameByTvboxToken?(token: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT username FROM users WHERE tvbox_subscribe_token = ?')
+        .bind(token)
+        .first();
+
+      return result?.username || null;
+    } catch (err) {
+      console.error('D1Storage.getUsernameByTvboxToken error:', err);
+      return null;
+    }
+  }
+
   // ==================== 搜索历史 ====================
 
   async getSearchHistory(userName: string): Promise<string[]> {

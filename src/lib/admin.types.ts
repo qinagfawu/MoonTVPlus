@@ -201,6 +201,7 @@ export interface AdminConfig {
       appendMediaSourceId?: boolean; // 拼接MediaSourceId参数
       transcodeMp4?: boolean; // 转码mp4
       proxyPlay?: boolean; // 视频播放代理开关
+      customUserAgent?: string; // 自定义User-Agent
     }>;
     // 旧格式：单源配置（向后兼容）
     Enabled?: boolean;

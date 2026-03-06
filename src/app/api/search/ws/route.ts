@@ -6,6 +6,7 @@ import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { yellowWords } from '@/lib/yellow';
+import { getProxyToken } from '@/lib/emby-token';
 
 export const runtime = 'nodejs';
 
@@ -123,6 +124,9 @@ export async function GET(request: NextRequest) {
             const embySourcesMap = await embyManager.getAllClients();
             const embySources = Array.from(embySourcesMap.values());
 
+            // 获取代理 token（用于图片代理）
+            const proxyToken = await getProxyToken(request);
+
             // 为每个 Emby 源并发搜索，并单独发送结果
             const embySearchPromises = embySources.map(async ({ client, config: embyConfig }) => {
               try {
@@ -144,7 +148,7 @@ export async function GET(request: NextRequest) {
                   source: sourceValue,
                   source_name: sourceName,
                   title: item.Name,
-                  poster: client.getImageUrl(item.Id, 'Primary'),
+                  poster: client.getImageUrl(item.Id, 'Primary', undefined, client.isProxyEnabled() ? proxyToken || undefined : undefined),
                   episodes: [],
                   episodes_titles: [],
                   year: item.ProductionYear?.toString() || '',

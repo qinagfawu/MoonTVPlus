@@ -3,6 +3,7 @@
 
 import { Plus, ToggleLeft, ToggleRight,Trash2, X } from 'lucide-react';
 import { useEffect, useRef,useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { getEpisodeFilterConfig, saveEpisodeFilterConfig } from '@/lib/db.client';
 import { EpisodeFilterConfig, EpisodeFilterRule } from '@/lib/types';
@@ -29,6 +30,12 @@ export default function EpisodeFilterSettings({
   const [isAnimating, setIsAnimating] = useState(false);
   const [inputKey, setInputKey] = useState(0); // 用于强制重新渲染输入框
   const inputRef = useRef<HTMLInputElement>(null); // 用于直接操作输入框 DOM
+  const [mounted, setMounted] = useState(false);
+
+  // 确保组件在客户端挂载后才渲染 Portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 控制动画状态
   useEffect(() => {
@@ -210,11 +217,11 @@ export default function EpisodeFilterSettings({
     }));
   };
 
-  if (!isVisible) return null;
+  if (!isVisible || !mounted) return null;
 
-  return (
+  const content = (
     <div
-      className="fixed inset-0 z-[2000] flex items-end justify-center"
+      className="fixed inset-0 z-[10000] flex items-end justify-center"
       onTouchMove={(e) => {
         // 阻止最外层容器的触摸移动，防止背景滚动
         e.preventDefault();
@@ -247,7 +254,7 @@ export default function EpisodeFilterSettings({
 
       {/* 弹窗主体 */}
       <div
-        className="relative w-full bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl transition-all duration-300 ease-out max-h-[85vh]"
+        className="relative w-full bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl transition-all duration-300 ease-out max-h-[85vh] flex flex-col"
         onTouchMove={(e) => {
           // 允许弹窗内部滚动，阻止事件冒泡到外层
           e.stopPropagation();
@@ -284,7 +291,7 @@ export default function EpisodeFilterSettings({
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
           {/* 添加规则 */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -450,4 +457,7 @@ export default function EpisodeFilterSettings({
       </div>
     </div>
   );
+
+  // 使用 Portal 将组件渲染到 document.body
+  return createPortal(content, document.body);
 }

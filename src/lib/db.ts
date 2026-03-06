@@ -482,6 +482,27 @@ export class DbManager {
     return [];
   }
 
+  // ---------- TVBox订阅token ----------
+  async getTvboxSubscribeToken(userName: string): Promise<string | null> {
+    if (typeof (this.storage as any).getTvboxSubscribeToken === 'function') {
+      return (this.storage as any).getTvboxSubscribeToken(userName);
+    }
+    return null;
+  }
+
+  async setTvboxSubscribeToken(userName: string, token: string): Promise<void> {
+    if (typeof (this.storage as any).setTvboxSubscribeToken === 'function') {
+      await (this.storage as any).setTvboxSubscribeToken(userName, token);
+    }
+  }
+
+  async getUsernameByTvboxToken(token: string): Promise<string | null> {
+    if (typeof (this.storage as any).getUsernameByTvboxToken === 'function') {
+      return (this.storage as any).getUsernameByTvboxToken(token);
+    }
+    return null;
+  }
+
   // ---------- 播放记录迁移 ----------
   async migratePlayRecords(userName: string): Promise<void> {
     if (typeof (this.storage as any).migratePlayRecords === 'function') {

@@ -3512,6 +3512,7 @@ const EmbyConfigComponent = ({
     appendMediaSourceId: false,
     transcodeMp4: false,
     proxyPlay: false,
+    customUserAgent: '',
   });
 
   // 从配置加载源列表
@@ -3551,6 +3552,7 @@ const EmbyConfigComponent = ({
       appendMediaSourceId: false,
       transcodeMp4: false,
       proxyPlay: false,
+      customUserAgent: '',
     });
     setEditingSource(null);
     setShowAddForm(false);
@@ -4246,7 +4248,7 @@ const EmbyConfigComponent = ({
               </div>
 
               {/* 视频播放代理开关 */}
-              <div className='flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700'>
+              <div className='flex items-center justify-between mb-3'>
                 <div className='flex-1'>
                   <h4 className='text-sm font-medium text-gray-900 dark:text-white'>
                     视频播放代理
@@ -4267,6 +4269,23 @@ const EmbyConfigComponent = ({
                     }`}
                   />
                 </button>
+            </div>
+
+            {/* 自定义User-Agent */}
+            <div className='mb-3'>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                自定义User-Agent
+              </label>
+              <input
+                type='text'
+                value={formData.customUserAgent || ''}
+                onChange={(e) => setFormData({ ...formData, customUserAgent: e.target.value })}
+                placeholder='留空使用默认浏览器UA'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm'
+              />
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                用于登录、获取影片和代理视频时的User-Agent，留空则使用默认浏览器UA
+              </p>
             </div>
             </div>
 

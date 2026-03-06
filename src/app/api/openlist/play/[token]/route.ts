@@ -22,13 +22,29 @@ export async function GET(
   try {
     const { searchParams } = new URL(request.url);
 
-    // 双重验证：TVBox Token 或 用户登录
+    // 双重验证：TVBox Token（全局或用户） 或 用户登录
     const requestToken = params.token;
-    const subscribeToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
+    const globalToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
     const authInfo = getAuthInfoFromCookie(request);
 
-    // 验证 TVBox Token
-    const hasValidToken = subscribeToken && requestToken === subscribeToken;
+    // 验证 TVBox Token（全局token或用户token）
+    let hasValidToken = false;
+    if (globalToken && requestToken === globalToken) {
+      // 全局token
+      hasValidToken = true;
+    } else {
+      // 检查是否是用户token
+      const { db } = await import('@/lib/db');
+      const username = await db.getUsernameByTvboxToken(requestToken);
+      if (username) {
+        // 检查用户是否被封禁
+        const userInfo = await db.getUserInfoV2(username);
+        if (userInfo && !userInfo.banned) {
+          hasValidToken = true;
+        }
+      }
+    }
+
     // 验证用户登录
     const hasValidAuth = authInfo && authInfo.username;
 

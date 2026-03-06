@@ -611,20 +611,22 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
       });
     }
 
-    // 详情页面按钮
-    actions.push({
-      id: 'detail',
-      label: '详情',
-      icon: <Info size={20} />,
-      onClick: () => {
-        setShowMobileActions(false);
-        // 延迟打开 DetailPanel，确保 MobileActionSheet 完全清理完成
-        setTimeout(() => {
-          setShowDetailPanel(true);
-        }, 250);
-      },
-      color: 'default' as const,
-    });
+    // 详情页面按钮（直播源不显示详情）
+    if (origin !== 'live') {
+      actions.push({
+        id: 'detail',
+        label: '详情',
+        icon: <Info size={20} />,
+        onClick: () => {
+          setShowMobileActions(false);
+          // 延迟打开 DetailPanel，确保 MobileActionSheet 完全清理完成
+          setTimeout(() => {
+            setShowDetailPanel(true);
+          }, 250);
+        },
+        color: 'default' as const,
+      });
+    }
 
     // AI问片功能
     if (aiEnabled && actualTitle) {
@@ -1522,6 +1524,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
           tmdbId={tmdb_id}
           type={actualSearchType as 'movie' | 'tv'}
           seasonNumber={seasonNumber}
+          currentEpisode={currentEpisode}
           cmsData={cmsData}
           sourceId={id}
           source={source}

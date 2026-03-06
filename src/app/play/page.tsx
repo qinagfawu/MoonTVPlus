@@ -58,6 +58,7 @@ import DanmakuFilterSettings from '@/components/DanmakuFilterSettings';
 import DetailPanel from '@/components/DetailPanel';
 import DoubanComments from '@/components/DoubanComments';
 import DownloadEpisodeSelector from '@/components/DownloadEpisodeSelector';
+import Drawer from '@/components/Drawer';
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
 import PansouSearch from '@/components/PansouSearch';
@@ -131,6 +132,48 @@ function PlayPageClient() {
 
   // 详情面板状态
   const [showDetailPanel, setShowDetailPanel] = useState(false);
+
+  // 大屏设备检测（判断选集面板是否在右侧）
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
+
+  // 检测是否为大屏设备
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsLargeScreen(window.innerWidth >= 768); // md断点
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  // 抽屉管理：打开指定抽屉时关闭其他抽屉
+  const openDrawer = (drawerName: 'pansou' | 'aiChat' | 'correct' | 'detail') => {
+    if (!isLargeScreen) {
+      // 小屏设备不需要互斥
+      switch (drawerName) {
+        case 'pansou':
+          setShowPansouDialog(true);
+          break;
+        case 'aiChat':
+          setShowAIChat(true);
+          break;
+        case 'correct':
+          setShowCorrectDialog(true);
+          break;
+        case 'detail':
+          setShowDetailPanel(true);
+          break;
+      }
+      return;
+    }
+
+    // 大屏设备：关闭其他抽屉
+    setShowPansouDialog(drawerName === 'pansou');
+    setShowAIChat(drawerName === 'aiChat');
+    setShowCorrectDialog(drawerName === 'correct');
+    setShowDetailPanel(drawerName === 'detail');
+  };
 
   // 检查AI功能是否启用
   useEffect(() => {
@@ -1271,6 +1314,14 @@ function PlayPageClient() {
     Map<string, { quality: string; loadSpeed: string; pingTime: number; bitrate: string }>
   >(new Map());
 
+  // 当前源的视频信息（用于标题旁边显示）
+  const [currentSourceVideoInfo, setCurrentSourceVideoInfo] = useState<{
+    quality: string;
+    loadSpeed: string;
+    pingTime: number;
+    bitrate: string;
+  } | null>(null);
+
   // 折叠状态（仅在 lg 及以上屏幕有效）
   const [isEpisodeSelectorCollapsed, setIsEpisodeSelectorCollapsed] =
     useState(false);
@@ -1355,6 +1406,27 @@ function PlayPageClient() {
 
     // 无法判断，返回 unknown
     return 'unknown';
+  };
+
+  // 获取当前源的视频信息（分辨率和码率）
+  const fetchCurrentSourceVideoInfo = async () => {
+    if (!detail || !detail.episodes || detail.episodes.length === 0) {
+      return;
+    }
+
+    // 获取当前集数的播放地址
+    const episodeUrl = detail.episodes[currentEpisodeIndex];
+    if (!episodeUrl) {
+      return;
+    }
+
+    try {
+      const info = await getVideoResolutionFromM3u8(episodeUrl, 4000);
+      setCurrentSourceVideoInfo(info);
+    } catch (error) {
+      console.error('获取视频信息失败:', error);
+      setCurrentSourceVideoInfo(null);
+    }
   };
 
   // 播放源优选函数
@@ -1608,6 +1680,117 @@ function PlayPageClient() {
     }
 
     return false;
+  };
+
+  /**
+   * 检查 File System API 本地下载
+   */
+  const checkFileSystemDownload = async (
+    title: string,
+    source?: string,
+    videoId?: string,
+    episodeIndex?: number
+  ): Promise<{ hasLocal: boolean; dirHandle?: FileSystemDirectoryHandle }> => {
+    try {
+      // 从 IndexedDB 读取目录句柄
+      const dbName = 'MoonTVPlus';
+      const storeName = 'dirHandles';
+
+      return new Promise((resolve) => {
+        const request = indexedDB.open(dbName, 2); // 使用版本 2
+
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
+
+          // 创建 dirHandles 表（如果不存在）
+          if (!db.objectStoreNames.contains(storeName)) {
+            db.createObjectStore(storeName);
+          }
+
+          // 创建 activeTasks 表（如果不存在）
+          if (!db.objectStoreNames.contains('activeTasks')) {
+            const activeStore = db.createObjectStore('activeTasks', { keyPath: 'id' });
+            activeStore.createIndex('status', 'status', { unique: false });
+            activeStore.createIndex('createdAt', 'createdAt', { unique: false });
+          }
+
+          // 创建 completedTasks 表（如果不存在）
+          if (!db.objectStoreNames.contains('completedTasks')) {
+            const completedStore = db.createObjectStore('completedTasks', { keyPath: 'id' });
+            completedStore.createIndex('source', 'source', { unique: false });
+            completedStore.createIndex('videoId', 'videoId', { unique: false });
+            completedStore.createIndex('completedAt', 'completedAt', { unique: false });
+            completedStore.createIndex('sourceVideoId', ['source', 'videoId'], { unique: false });
+          }
+        };
+
+        request.onsuccess = async (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
+
+          // 检查 object store 是否存在
+          if (!db.objectStoreNames.contains(storeName)) {
+            db.close();
+            resolve({ hasLocal: false });
+            return;
+          }
+
+          const transaction = db.transaction([storeName], 'readonly');
+          const store = transaction.objectStore(storeName);
+          const getRequest = store.get('downloadDir');
+
+          getRequest.onsuccess = async () => {
+            const dirHandle = getRequest.result as FileSystemDirectoryHandle | undefined;
+            if (!dirHandle) {
+              resolve({ hasLocal: false });
+              return;
+            }
+
+            try {
+              // 请求读权限
+              const permission = await (dirHandle as any).queryPermission({ mode: 'read' });
+              if (permission !== 'granted') {
+                const requestPermission = await (dirHandle as any).requestPermission({ mode: 'read' });
+                if (requestPermission !== 'granted') {
+                  console.warn('未获得读权限');
+                  resolve({ hasLocal: false });
+                  return;
+                }
+              }
+
+              // 如果有 source、videoId 和 episodeIndex，检查子目录
+              if (source && videoId && episodeIndex !== undefined) {
+                const sourceDirHandle = await dirHandle.getDirectoryHandle(source, { create: false });
+                const videoIdDirHandle = await sourceDirHandle.getDirectoryHandle(videoId, { create: false });
+                const epDirHandle = await videoIdDirHandle.getDirectoryHandle(`ep${episodeIndex + 1}`, { create: false });
+
+                // 检查是否存在 playlist.m3u8 文件
+                await epDirHandle.getFileHandle('playlist.m3u8', { create: false });
+                console.log('找到本地下载文件:', title, `(${source}/${videoId}/ep${episodeIndex + 1})`);
+                resolve({ hasLocal: true, dirHandle: epDirHandle });
+              } else {
+                // 缺少必要参数
+                resolve({ hasLocal: false });
+              }
+            } catch (error) {
+              // 文件不存在
+              console.error('检查本地文件失败:', error);
+              resolve({ hasLocal: false });
+            }
+          };
+
+          getRequest.onerror = () => {
+            resolve({ hasLocal: false });
+          };
+        };
+
+        request.onerror = () => {
+          resolve({ hasLocal: false });
+        };
+      });
+    } catch (error) {
+      console.error('检查 File System API 下载失败:', error);
+      return { hasLocal: false };
+    }
   };
 
   /**
@@ -1901,17 +2084,94 @@ function PlayPageClient() {
       setVideoQualities([]);
     }
 
-    // 检查是否有本地下载的文件
-    const hasLocalFile = await checkLocalDownload(currentSource, currentId, episodeIndex);
+    // 检查是否有 File System API 本地下载的文件
+    const episodeTitle = detailData?.episodes_titles?.[episodeIndex] || `第${episodeIndex + 1}集`;
+    const fileSystemCheck = await checkFileSystemDownload(
+      episodeTitle,
+      currentSource || undefined,
+      currentId || undefined,
+      episodeIndex
+    );
 
-    if (hasLocalFile) {
-      // 使用本地代理接口,URL以.m3u8结尾以便Artplayer自动识别
-      newUrl = `/api/offline-download/local/${currentSource}/${currentId}/${episodeIndex}/playlist.m3u8`;
-      console.log('使用本地下载文件播放:', newUrl);
-    } else if (sourceProxyMode && newUrl) {
-      // 如果视频源启用了代理模式,且不是本地下载,则通过代理播放
-      newUrl = `/api/proxy/vod/m3u8?url=${encodeURIComponent(newUrl)}&source=${encodeURIComponent(currentSource)}`;
-      console.log('使用代理模式播放:', newUrl);
+    if (fileSystemCheck.hasLocal && fileSystemCheck.dirHandle) {
+      // 使用本地文件播放
+      try {
+        // 读取 m3u8 文件
+        const fileHandle = await fileSystemCheck.dirHandle.getFileHandle('playlist.m3u8', { create: false });
+        const file = await fileHandle.getFile();
+        let content = await file.text();
+
+        // 解析 m3u8 文件，为每个 ts 文件创建 Blob URL
+        const lines = content.split('\n');
+        const modifiedLines: string[] = [];
+        const blobUrls: string[] = []; // 保存 Blob URL 以便后续清理
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+
+          // 如果是 ts 文件
+          if (trimmedLine.endsWith('.ts')) {
+            try {
+              // 读取 ts 文件
+              const tsFileHandle = await fileSystemCheck.dirHandle.getFileHandle(trimmedLine, { create: false });
+              const tsFile = await tsFileHandle.getFile();
+
+              // 创建 Blob URL
+              const blobUrl = URL.createObjectURL(tsFile);
+              blobUrls.push(blobUrl);
+
+              // 替换为 Blob URL
+              modifiedLines.push(line.replace(trimmedLine, blobUrl));
+            } catch (error) {
+              console.error(`读取 ts 文件失败: ${trimmedLine}`, error);
+              modifiedLines.push(line);
+            }
+          }
+          // 如果是加密密钥
+          else if (trimmedLine.includes('key.key')) {
+            try {
+              const keyFileHandle = await fileSystemCheck.dirHandle.getFileHandle('key.key', { create: false });
+              const keyFile = await keyFileHandle.getFile();
+              const keyBlobUrl = URL.createObjectURL(keyFile);
+              blobUrls.push(keyBlobUrl);
+              modifiedLines.push(line.replace('key.key', keyBlobUrl));
+            } catch (error) {
+              console.error('读取密钥文件失败:', error);
+              modifiedLines.push(line);
+            }
+          }
+          else {
+            modifiedLines.push(line);
+          }
+        }
+
+        // 创建修改后的 m3u8 的 Blob URL
+        const modifiedContent = modifiedLines.join('\n');
+        const m3u8Blob = new Blob([modifiedContent], { type: 'application/vnd.apple.mpegurl' });
+        newUrl = URL.createObjectURL(m3u8Blob);
+
+        // 保存 Blob URLs 到 window，以便在切换视频时清理
+        (window as any).__localFileBlobUrls = blobUrls;
+
+        console.log('使用 File System API 本地文件播放（Blob URL 模式）:', episodeTitle);
+      } catch (error) {
+        console.error('读取本地文件失败:', error);
+      }
+    }
+
+    // 如果没有 File System API 本地文件，检查服务器端本地下载
+    if (!fileSystemCheck.hasLocal) {
+      const hasLocalFile = await checkLocalDownload(currentSource, currentId, episodeIndex);
+
+      if (hasLocalFile) {
+        // 使用本地代理接口,URL以.m3u8结尾以便Artplayer自动识别
+        newUrl = `/api/offline-download/local/${currentSource}/${currentId}/${episodeIndex}/playlist.m3u8`;
+        console.log('使用服务器端本地下载文件播放:', newUrl);
+      } else if (sourceProxyMode && newUrl) {
+        // 如果视频源启用了代理模式,且不是本地下载,则通过代理播放
+        newUrl = `/api/proxy/vod/m3u8?url=${encodeURIComponent(newUrl)}&source=${encodeURIComponent(currentSource)}`;
+        console.log('使用代理模式播放:', newUrl);
+      }
     }
 
     if (newUrl !== videoUrl) {
@@ -1994,7 +2254,11 @@ function PlayPageClient() {
         // M3U8格式 - 使用新的下载器，TS 格式
         try {
           const downloadTitle = `${videoTitle}_第${episodeIndex + 1}集`;
-          await addDownloadTask(proxyUrl, downloadTitle, 'TS');
+          await addDownloadTask(proxyUrl, downloadTitle, 'TS', {
+            source: currentSource || undefined,
+            videoId: currentId || undefined,
+            episodeIndex,
+          });
           successCount++;
         } catch (error) {
           console.error(`添加下载任务失败 (第${episodeIndex + 1}集):`, error);
@@ -3287,6 +3551,13 @@ function PlayPageClient() {
       }
     }
   }, [searchParams, currentSource, currentId, availableSources, currentEpisodeIndex]);
+
+  // 监听 detail 和 currentEpisodeIndex 变化，自动获取视频信息
+  useEffect(() => {
+    if (detail && detail.episodes && detail.episodes.length > 0) {
+      fetchCurrentSourceVideoInfo();
+    }
+  }, [detail, currentEpisodeIndex]);
 
   // 监听 detail 和 currentEpisodeIndex 变化，动态更新字幕
   useEffect(() => {
@@ -4942,6 +5213,16 @@ function PlayPageClient() {
 
             const bufferConfig = getBufferConfig(bufferStrategy);
 
+            // 选择合适的 Loader
+            let loaderClass;
+            if (shouldUseCustomLoader) {
+              // 使用自定义广告过滤 Loader
+              loaderClass = CustomHlsJsLoader;
+            } else {
+              // 使用默认 Loader
+              loaderClass = Hls.DefaultConfig.loader;
+            }
+
             const hls = new Hls({
               debug: false, // 关闭日志
               enableWorker: true, // WebWorker 解码，降低主线程压力
@@ -4953,9 +5234,7 @@ function PlayPageClient() {
               maxBufferSize: bufferConfig.maxBufferSize, // 最大缓冲大小
 
               /* 自定义loader */
-              loader: (shouldUseCustomLoader
-                ? CustomHlsJsLoader
-                : Hls.DefaultConfig.loader) as any,
+              loader: loaderClass as any,
             });
 
             hls.loadSource(url);
@@ -7867,7 +8146,7 @@ function PlayPageClient() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowPansouDialog(true);
+                        openDrawer('pansou');
                       }}
                       className='flex-shrink-0 hover:opacity-80 transition-opacity'
                       title='搜索网盘资源'
@@ -7879,7 +8158,7 @@ function PlayPageClient() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowAIChat(true);
+                          openDrawer('aiChat');
                         }}
                         className='flex-shrink-0 hover:opacity-80 transition-opacity'
                         title='AI问片'
@@ -7892,7 +8171,7 @@ function PlayPageClient() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowDetailPanel(true);
+                          openDrawer('detail');
                         }}
                         className='flex-shrink-0 hover:opacity-80 transition-opacity px-2 py-1 text-base font-medium text-gray-700 dark:text-gray-300'
                         title='详情'
@@ -7905,7 +8184,7 @@ function PlayPageClient() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowCorrectDialog(true);
+                          openDrawer('correct');
                         }}
                         className='flex-shrink-0 hover:opacity-80 transition-opacity'
                         title='纠错'
@@ -7993,10 +8272,23 @@ function PlayPageClient() {
                       <span>{doubanYear || detail?.year || videoYear}</span>
                     )}
                     {detail?.source_name && (
-                      <span className={`border px-2 py-[1px] rounded ${
-                        detail.source === 'xiaoya' ? 'border-blue-500' : detail.source === 'openlist' || detail.source === 'emby' || detail.source?.startsWith('emby_') ? 'border-yellow-500' : 'border-gray-500/60'
-                      }`}>
+                      <span
+                        className={`relative group cursor-pointer border px-2 py-[1px] rounded ${
+                          detail.source === 'xiaoya' ? 'border-blue-500' : detail.source === 'openlist' || detail.source === 'emby' || detail.source?.startsWith('emby_') ? 'border-yellow-500' : 'border-gray-500/60'
+                        }`}
+                        onClick={fetchCurrentSourceVideoInfo}
+                      >
                         {detail.source_name}
+                        {/* 视频信息悬浮提示 */}
+                        {currentSourceVideoInfo && (
+                          <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 dark:bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out whitespace-nowrap z-[100] pointer-events-none'>
+                            <div className='text-sm'>
+                              <div>分辨率: {currentSourceVideoInfo.quality}</div>
+                              <div>码率: {currentSourceVideoInfo.bitrate}</div>
+                            </div>
+                            <div className='absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800 dark:border-t-gray-900'></div>
+                          </div>
+                        )}
                       </span>
                     )}
                     {detail?.type_name && <span>{detail.type_name}</span>}
@@ -8143,36 +8435,52 @@ function PlayPageClient() {
 
       {/* 网盘搜索弹窗 */}
       {showPansouDialog && (
-        <div
-          className='fixed inset-0 z-[10000] flex items-center justify-center bg-black/50'
-          onClick={() => setShowPansouDialog(false)}
-        >
-          <div
-            className='relative w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-lg shadow-xl m-4'
-            onClick={(e) => e.stopPropagation()}
+        isLargeScreen ? (
+          <Drawer
+            isOpen={showPansouDialog}
+            onClose={() => setShowPansouDialog(false)}
+            title={`搜索网盘资源: ${detail?.title || ''}`}
+            width='w-[400px]'
           >
-            {/* 弹窗头部 */}
-            <div className='sticky top-0 z-10 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'>
-              <h2 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
-                搜索网盘资源: {detail?.title || ''}
-              </h2>
-              <button
-                onClick={() => setShowPansouDialog(false)}
-                className='p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors'
-              >
-                <X className='h-5 w-5 text-gray-600 dark:text-gray-400' />
-              </button>
-            </div>
-
-            {/* 弹窗内容 */}
             <div className='p-4'>
               <PansouSearch
                 keyword={detail?.title || ''}
                 triggerSearch={showPansouDialog}
               />
             </div>
+          </Drawer>
+        ) : (
+          <div
+            className='fixed inset-0 z-[10000] flex items-center justify-center bg-black/50'
+            onClick={() => setShowPansouDialog(false)}
+          >
+            <div
+              className='relative w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-lg shadow-xl m-4'
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className='sticky top-0 z-10 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'>
+                <h2 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
+                  搜索网盘资源: {detail?.title || ''}
+                </h2>
+                <button
+                  onClick={() => setShowPansouDialog(false)}
+                  className='p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors'
+                >
+                  <X className='h-5 w-5 text-gray-600 dark:text-gray-400' />
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className='p-4'>
+                <PansouSearch
+                  keyword={detail?.title || ''}
+                  triggerSearch={showPansouDialog}
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* AI问片面板 */}
@@ -8187,6 +8495,8 @@ function PlayPageClient() {
             currentEpisode: currentEpisodeIndex + 1,
           }}
           welcomeMessage={aiDefaultMessageWithVideo ? aiDefaultMessageWithVideo.replace('{title}', detail.title || '') : `想了解《${detail.title}》的更多信息吗？我可以帮你查询剧情、演员、评价等。`}
+          useDrawer={isLargeScreen}
+          drawerWidth='w-[400px]'
         />
       )}
 
@@ -8211,6 +8521,8 @@ function PlayPageClient() {
             // 纠错成功后的回调
             handleCorrectSuccess();
           }}
+          useDrawer={isLargeScreen}
+          drawerWidth='w-[400px]'
         />
       )}
 
@@ -8241,6 +8553,7 @@ function PlayPageClient() {
               : undefined
           }
           type={detail.type_name === '电影' ? 'movie' : 'tv'}
+          currentEpisode={currentEpisodeIndex + 1}
           cmsData={
             // 非特殊源使用 cms 数据
             // 但如果有豆瓣ID且不为0，则不传入cmsData，优先使用豆瓣数据
@@ -8257,6 +8570,8 @@ function PlayPageClient() {
           }
           sourceId={detail.id}
           source={detail.source}
+          useDrawer={isLargeScreen}
+          drawerWidth='w-[400px]'
         />
       )}
     </PageLayout>

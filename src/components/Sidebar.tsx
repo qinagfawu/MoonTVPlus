@@ -308,10 +308,16 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                   const decodedActive = decodeURIComponent(active);
                   const decodedItemHref = decodeURIComponent(item.href);
 
+                  // 提取路径名（不包含查询参数）
+                  const activePathname = decodedActive.split('?')[0];
+                  const itemPathname = decodedItemHref.split('?')[0];
+
                   const isActive =
                     decodedActive === decodedItemHref ||
                     (decodedActive.startsWith('/douban') &&
-                      decodedActive.includes(`type=${typeMatch}`));
+                      decodedActive.includes(`type=${typeMatch}`)) ||
+                    // 对于没有type参数的路径，只比较路径名
+                    (!typeMatch && activePathname === itemPathname);
                   const Icon = item.icon;
                   return (
                     <Link

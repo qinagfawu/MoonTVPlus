@@ -22,15 +22,14 @@ async function getEmbyClient(embyKey?: string) {
 }
 
 /**
- * GET /api/emby/play/{token}/{filename}?itemId=xxx
- * 代理 Emby 视频播放链接，URL 中包含文件扩展名（如 video.mp4）
- * 实际返回的内容根据 Emby 服务器的 Content-Type 决定
+ * GET /api/emby/image/{token}/{itemId}?imageType=Primary&maxWidth=300&embyKey=xxx
+ * 代理 Emby 图片
  *
  * 权限验证：TVBox Token（路径参数） 或 用户登录（满足其一即可）
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string; filename: string } }
+  { params }: { params: { token: string; itemId: string } }
 ) {
   try {
     const { searchParams } = new URL(request.url);
@@ -66,93 +65,65 @@ export async function GET(
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const itemId = searchParams.get('itemId');
+    const itemId = params.itemId;
+    const imageType = (searchParams.get('imageType') || 'Primary') as 'Primary' | 'Backdrop' | 'Logo';
+    const maxWidth = searchParams.get('maxWidth') ? parseInt(searchParams.get('maxWidth')!) : undefined;
     const embyKey = searchParams.get('embyKey') || undefined;
 
-    if (!itemId) {
-      return NextResponse.json({ error: '缺少 itemId 参数' }, { status: 400 });
-    }
-
     // 获取 Emby 客户端
-    let client = await getEmbyClient(embyKey);
+    const client = await getEmbyClient(embyKey);
 
-    // 构建 Emby 原始播放链接（强制获取直接URL，避免代理循环）
-    let embyStreamUrl = await client.getStreamUrl(itemId, true, true);
-	console.log(embyStreamUrl)
+    // 获取图片 URL
+    const imageUrl = client.getImageUrl(itemId, imageType, maxWidth);
 
-    // 构建请求头，转发 Range 请求，并添加自定义 User-Agent
+    // 构建请求头，添加自定义 User-Agent
     const requestHeaders: HeadersInit = {
       'User-Agent': client.getUserAgent(),
     };
-    const rangeHeader = request.headers.get('range');
-    if (rangeHeader) {
-      requestHeaders['Range'] = rangeHeader;
-    }
 
-    // 流式代理视频内容
-    let videoResponse = await fetch(embyStreamUrl, {
+    // 请求图片
+    const imageResponse = await fetch(imageUrl, {
       headers: requestHeaders,
     });
 
-    // 如果返回 401，尝试重新认证并重试
-    if (videoResponse.status === 401) {
-      console.log('[Emby Play] 收到 401 错误，尝试重新认证');
-      const { embyManager } = await import('@/lib/emby-manager');
-      embyManager.clearCache();
-      client = await getEmbyClient(embyKey);
-      embyStreamUrl = await client.getStreamUrl(itemId, true, true);
-      videoResponse = await fetch(embyStreamUrl, {
-        headers: requestHeaders,
-      });
-    }
-
-    if (!videoResponse.ok) {
-      console.error('[Emby Play] 获取视频流失败:', {
+    if (!imageResponse.ok) {
+      console.error('[Emby Image] 获取图片失败:', {
         itemId,
-        status: videoResponse.status,
-        statusText: videoResponse.statusText,
+        imageType,
+        status: imageResponse.status,
+        statusText: imageResponse.statusText,
       });
       return NextResponse.json(
-        { error: '获取视频流失败' },
+        { error: '获取图片失败' },
         { status: 500 }
       );
     }
 
     // 获取 Content-Type
-    const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
     // 构建响应头
     const headers = new Headers();
     headers.set('Content-Type', contentType);
 
     // 复制重要的响应头
-    const contentLength = videoResponse.headers.get('content-length');
+    const contentLength = imageResponse.headers.get('content-length');
     if (contentLength) {
       headers.set('Content-Length', contentLength);
     }
 
-    const acceptRanges = videoResponse.headers.get('accept-ranges');
-    if (acceptRanges) {
-      headers.set('Accept-Ranges', acceptRanges);
-    }
+    // 设置缓存头
+    headers.set('Cache-Control', 'public, max-age=86400'); // 缓存1天
 
-    const contentRange = videoResponse.headers.get('content-range');
-    if (contentRange) {
-      headers.set('Content-Range', contentRange);
-    }
-
-    // 使用 URL 中的文件名
-    headers.set('Content-Disposition', `inline; filename="${params.filename}"`);
-
-    // 流式返回视频内容，不等待下载完成
-    return new NextResponse(videoResponse.body, {
-      status: videoResponse.status,
+    // 返回图片内容
+    return new NextResponse(imageResponse.body, {
+      status: imageResponse.status,
       headers,
     });
   } catch (error) {
-    console.error('[Emby Play] 错误:', error);
+    console.error('[Emby Image] 错误:', error);
     return NextResponse.json(
-      { error: '播放失败', details: (error as Error).message },
+      { error: '获取图片失败', details: (error as Error).message },
       { status: 500 }
     );
   }

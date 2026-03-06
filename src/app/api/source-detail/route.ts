@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import { getProxyToken } from '@/lib/emby-token';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +53,9 @@ export async function GET(request: NextRequest) {
 
       const client = await embyManager.getClient(embyKey);
 
+      // 获取代理 token（如果启用了代理）
+      const proxyToken = client.isProxyEnabled() ? await getProxyToken(request) : null;
+
       // 获取媒体详情
       const item = await client.getItem(id);
 
@@ -65,7 +69,7 @@ export async function GET(request: NextRequest) {
           source_name: sourceName,
           id: item.Id,
           title: item.Name,
-          poster: client.getImageUrl(item.Id, 'Primary'),
+          poster: client.getImageUrl(item.Id, 'Primary', undefined, proxyToken || undefined),
           year: item.ProductionYear?.toString() || '',
           douban_id: 0,
           desc: item.Overview || '',
@@ -99,7 +103,7 @@ export async function GET(request: NextRequest) {
           source_name: sourceName,
           id: item.Id,
           title: item.Name,
-          poster: client.getImageUrl(item.Id, 'Primary'),
+          poster: client.getImageUrl(item.Id, 'Primary', undefined, proxyToken || undefined),
           year: item.ProductionYear?.toString() || '',
           douban_id: 0,
           desc: item.Overview || '',
