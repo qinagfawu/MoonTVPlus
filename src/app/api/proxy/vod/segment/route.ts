@@ -19,16 +19,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing source' }, { status: 400 });
   }
 
-  // 检查该视频源是否启用了代理模式
-  const config = await getConfig();
-  const videoSource = config.SourceConfig?.find((s: any) => s.key === source);
+  // 直链播放模式：跳过源站配置检查，直接代理
+  if (source !== 'directplay') {
+    // 检查该视频源是否启用了代理模式
+    const config = await getConfig();
+    const videoSource = config.SourceConfig?.find((s: any) => s.key === source);
 
-  if (!videoSource) {
-    return NextResponse.json({ error: 'Source not found' }, { status: 404 });
-  }
+    if (!videoSource) {
+      return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+    }
 
-  if (!videoSource.proxyMode) {
-    return NextResponse.json({ error: 'Proxy mode not enabled for this source' }, { status: 403 });
+    if (!videoSource.proxyMode) {
+      return NextResponse.json({ error: 'Proxy mode not enabled for this source' }, { status: 403 });
+    }
   }
 
   let response: Response | null = null;
