@@ -22,6 +22,7 @@ import PansouSearch from '@/components/PansouSearch';
 import SearchResultFilter, { SearchFilterCategory } from '@/components/SearchResultFilter';
 import SearchSuggestions from '@/components/SearchSuggestions';
 import VideoCard, { VideoCardHandle } from '@/components/VideoCard';
+import VirtualScrollableGrid from '@/components/VirtualScrollableGrid';
 
 function SearchPageClient() {
   // 搜索历史
@@ -517,6 +518,11 @@ function SearchPageClient() {
         bTitle.localeCompare(aTitle);
     });
   }, [aggregatedResults, filterAgg, searchQuery]);
+
+  const useVirtualGrid = useMemo(() => {
+    const cardCount = viewMode === 'agg' ? filteredAggResults.length : filteredAllResults.length;
+    return cardCount >= 100;
+  }, [viewMode, filteredAggResults.length, filteredAllResults.length]);
 
   // 监听选项卡切换，自动执行搜索
   useEffect(() => {
@@ -1194,77 +1200,98 @@ function SearchPageClient() {
                   </div>
                 )
               ) : (
-                <div
-                  key={`search-results-${viewMode}`}
-                  className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
-                >
-                  {viewMode === 'agg'
-                    ? filteredAggResults.map(([mapKey, group]) => {
-                      const title = group[0]?.title || '';
-                      const poster = group[0]?.poster || '';
-                      const year = group[0]?.year || 'unknown';
-                      const { episodes, source_names, douban_id } = computeGroupStats(group);
+                (() => {
+                  const gridClassName =
+                    'justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8';
 
-                      // 从 mapKey 中提取类型（mapKey 格式：normalizedTitle-type-year）
-                      // 找到最后一个 '-' 之前的部分，再找倒数第二个 '-'
-                      const lastDashIndex = mapKey.lastIndexOf('-');
-                      const secondLastDashIndex = mapKey.lastIndexOf('-', lastDashIndex - 1);
-                      const type = secondLastDashIndex > 0
-                        ? mapKey.substring(secondLastDashIndex + 1, lastDashIndex) as 'movie' | 'tv'
-                        : (episodes === 1 ? 'movie' : 'tv'); // 兜底
+                  const gridChildren =
+                    viewMode === 'agg'
+                      ? filteredAggResults.map(([mapKey, group]) => {
+                        const title = group[0]?.title || '';
+                        const poster = group[0]?.poster || '';
+                        const year = group[0]?.year || 'unknown';
+                        const { episodes, source_names, douban_id } = computeGroupStats(group);
 
-                      // 如果该聚合第一次出现，写入初始统计
-                      if (!groupStatsRef.current.has(mapKey)) {
-                        groupStatsRef.current.set(mapKey, { episodes, source_names, douban_id });
-                      }
+                        // 从 mapKey 中提取类型（mapKey 格式：normalizedTitle-type-year）
+                        // 找到最后一个 '-' 之前的部分，再找倒数第二个 '-'
+                        const lastDashIndex = mapKey.lastIndexOf('-');
+                        const secondLastDashIndex = mapKey.lastIndexOf('-', lastDashIndex - 1);
+                        const type = secondLastDashIndex > 0
+                          ? mapKey.substring(secondLastDashIndex + 1, lastDashIndex) as 'movie' | 'tv'
+                          : (episodes === 1 ? 'movie' : 'tv'); // 兜底
 
-                      return (
-                        <div key={`agg-${mapKey}`} className='w-full'>
+                        // 如果该聚合第一次出现，写入初始统计
+                        if (!groupStatsRef.current.has(mapKey)) {
+                          groupStatsRef.current.set(mapKey, { episodes, source_names, douban_id });
+                        }
+
+                        return (
+                          <div key={`agg-${mapKey}`} className='w-full'>
+                            <VideoCard
+                              ref={getGroupRef(mapKey)}
+                              from='search'
+                              isAggregate={true}
+                              title={title}
+                              poster={poster}
+                              year={year}
+                              episodes={episodes}
+                              source_names={source_names}
+                              douban_id={douban_id}
+                              query={
+                                searchQuery.trim() !== title
+                                  ? searchQuery.trim()
+                                  : ''
+                              }
+                              type={type}
+                            />
+                          </div>
+                        );
+                      })
+                      : filteredAllResults.map((item) => (
+                        <div
+                          key={`all-${item.source}-${item.id}`}
+                          className='w-full'
+                        >
                           <VideoCard
-                            ref={getGroupRef(mapKey)}
-                            from='search'
-                            isAggregate={true}
-                            title={title}
-                            poster={poster}
-                            year={year}
-                            episodes={episodes}
-                            source_names={source_names}
-                            douban_id={douban_id}
+                            id={item.id}
+                            title={item.title}
+                            poster={item.poster}
+                            episodes={item.episodes.length}
+                            source={item.source}
+                            source_name={item.source_name}
+                            douban_id={item.douban_id}
                             query={
-                              searchQuery.trim() !== title
+                              searchQuery.trim() !== item.title
                                 ? searchQuery.trim()
                                 : ''
                             }
-                            type={type}
+                            year={item.year}
+                            from='search'
+                            type={item.episodes.length > 1 ? 'tv' : 'movie'}
                           />
                         </div>
-                      );
-                    })
-                    : filteredAllResults.map((item) => (
-                      <div
-                        key={`all-${item.source}-${item.id}`}
-                        className='w-full'
+                      ));
+
+                  if (useVirtualGrid) {
+                    return (
+                      <VirtualScrollableGrid
+                        key={`search-results-virtual-${viewMode}`}
+                        gridClassName={gridClassName}
                       >
-                        <VideoCard
-                          id={item.id}
-                          title={item.title}
-                          poster={item.poster}
-                          episodes={item.episodes.length}
-                          source={item.source}
-                          source_name={item.source_name}
-                          douban_id={item.douban_id}
-                          query={
-                            searchQuery.trim() !== item.title
-                              ? searchQuery.trim()
-                              : ''
-                          }
-                          year={item.year}
-                          from='search'
-                          type={item.episodes.length > 1 ? 'tv' : 'movie'}
-                        />
-                      </div>
-                    ))}
-                </div>
+                        {gridChildren}
+                      </VirtualScrollableGrid>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={`search-results-${viewMode}`}
+                      className={gridClassName}
+                    >
+                      {gridChildren}
+                    </div>
+                  );
+                })()
               )}
                 </>
               ) : activeTab === 'pansou' ? (
