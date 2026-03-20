@@ -11,6 +11,51 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "215.0.0",
+    date: "2026-03-20",
+    added: [
+    "增加主动恢复进度按钮",
+    "新增播放记录面板",
+    "弹幕搜索面板标题增加tooltip",
+    "影视搜索新增列表视图",
+    "pansou增加重试按钮",
+    "新增ai评论生成",
+    "增加一键render部署",
+    "电视直播增加三种代理模式"
+    ],
+    changed: [
+    "优化直链播放m3u8体验",
+    "搜索页面海量数据下使用虚拟滚动提高性能",
+    "优化emby代理内存泄漏问题",
+    "电视直播代理控制权从用户端改为管理端",
+    "获取视频源详情不再依赖title"
+    ],
+    fixed: [
+    "修复search页面僵尸历史记录tag",
+    "修复弹幕搜索框挤压",
+    "修复搜索页面加载条显示顺序错误",
+    "修复继续观看渐进式加载的一些问题"
+    ]
+  },
+  {
+    version: "214.1.0",
+    date: "2026-03-10",
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+    "emby兼容jellyfin",
+    "emby支持无密码登录",
+    "ai问片移除think块",
+    "ai问片可点击标题播放",
+    "优化ai问片流式处理，系统提示词增加日期，优化决策json提取"
+    ],
+    fixed: [
+    "修复filesystem模式取消下载不删除文件",
+    "修复未配置TVBOX_SUBSCRIBE_TOKEN不代理emby图片"
+    ]
+  },
+  {
     version: "214.0.0",
     date: "2026-03-04",
     added: [

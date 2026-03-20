@@ -241,15 +241,45 @@ export class M3U8Downloader {
   /**
    * 取消任务
    */
-  cancelTask(taskId: string): void {
+  async cancelTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) return;
 
     this.abortRequests(task);
+
+    // 如果是 filesystem 模式且任务未完成，删除已下载的文件
+    if (task.downloadMode === 'filesystem' && task.status !== 'done' && task.filesystemDirHandle) {
+      await this.deleteFilesystemTask(task);
+    }
+
     this.tasks.delete(taskId);
 
     if (this.currentTask?.id === taskId) {
       this.currentTask = null;
+    }
+  }
+
+  /**
+   * 删除 filesystem 模式下的任务文件
+   */
+  private async deleteFilesystemTask(task: M3U8DownloadTask): Promise<void> {
+    if (!task.filesystemDirHandle || !task.source || !task.videoId || task.episodeIndex === undefined) {
+      return;
+    }
+
+    try {
+      // 获取目标目录
+      const sourceDirHandle = await task.filesystemDirHandle.getDirectoryHandle(task.source, { create: false });
+      const videoIdDirHandle = await sourceDirHandle.getDirectoryHandle(task.videoId, { create: false });
+
+      // 删除 ep{n} 目录
+      const epDirName = `ep${task.episodeIndex + 1}`;
+      await videoIdDirHandle.removeEntry(epDirName, { recursive: true });
+
+      console.log(`已删除未完成的下载文件: ${task.source}/${task.videoId}/${epDirName}`);
+    } catch (error) {
+      // 如果目录不存在或删除失败，忽略错误
+      console.warn('删除文件失败（可能目录不存在）:', error);
     }
   }
 

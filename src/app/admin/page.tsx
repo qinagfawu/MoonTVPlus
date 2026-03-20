@@ -380,6 +380,7 @@ interface LiveDataSource {
   channelNumber?: number;
   disabled?: boolean;
   from: 'config' | 'custom';
+  proxyMode?: 'full' | 'm3u8-only' | 'direct'; // 代理模式
 }
 
 // 自定义分类数据类型
@@ -3514,6 +3515,7 @@ const EmbyConfigComponent = ({
     proxyPlay: false,
     customUserAgent: '',
   });
+  const [authMode, setAuthMode] = useState<'apikey' | 'password'>('apikey');
 
   // 从配置加载源列表
   useEffect(() => {
@@ -3554,6 +3556,7 @@ const EmbyConfigComponent = ({
       proxyPlay: false,
       customUserAgent: '',
     });
+    setAuthMode('apikey');
     setEditingSource(null);
     setShowAddForm(false);
   };
@@ -3561,6 +3564,14 @@ const EmbyConfigComponent = ({
   // 开始编辑
   const handleEdit = (source: any) => {
     setFormData({ ...source });
+    // 根据现有配置判断认证方式
+    if (source.ApiKey) {
+      setAuthMode('apikey');
+    } else if (source.Username) {
+      setAuthMode('password');
+    } else {
+      setAuthMode('apikey');
+    }
     setEditingSource(source);
     setShowAddForm(false);
   };
@@ -3577,6 +3588,19 @@ const EmbyConfigComponent = ({
     if (!formData.key || !formData.name || !formData.ServerURL) {
       showError('请填写必填字段：标识符、名称、服务器地址', showAlert);
       return;
+    }
+
+    // 根据认证方式验证必填字段
+    if (authMode === 'apikey') {
+      if (!formData.ApiKey || !formData.UserId) {
+        showError('使用密钥认证时，API Key 和用户 ID 为必填项', showAlert);
+        return;
+      }
+    } else if (authMode === 'password') {
+      if (!formData.Username) {
+        showError('使用账号认证时，用户名为必填项', showAlert);
+        return;
+      }
     }
 
     // 验证key唯一性
@@ -4088,67 +4112,119 @@ const EmbyConfigComponent = ({
               />
             </div>
 
-            {/* API Key */}
+            {/* 认证方式切换卡 */}
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                API Key（推荐）
+                认证方式 *
               </label>
-              <input
-                type='password'
-                value={formData.ApiKey}
-                onChange={(e) => setFormData({ ...formData, ApiKey: e.target.value })}
-                placeholder='输入 Emby API Key'
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                推荐使用 API Key 认证。如果不使用 API Key，请填写下方的用户名和密码。
-              </p>
+              <div className='flex gap-2 mb-4'>
+                <button
+                  type='button'
+                  onClick={() => {
+                    setAuthMode('apikey');
+                    // 切换到密钥认证时，清空用户名密码
+                    setFormData({ ...formData, Username: '', Password: '' });
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    authMode === 'apikey'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  密钥认证
+                </button>
+                <button
+                  type='button'
+                  onClick={() => {
+                    setAuthMode('password');
+                    // 切换到账号认证时，清空 API Key 和 UserId
+                    setFormData({ ...formData, ApiKey: '', UserId: '' });
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    authMode === 'password'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  账号认证
+                </button>
+              </div>
             </div>
 
-            {/* 用户名 */}
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                用户名（可选）
-              </label>
-              <input
-                type='text'
-                value={formData.Username}
-                onChange={(e) => setFormData({ ...formData, Username: e.target.value })}
-                placeholder='Emby 用户名'
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
+            {/* 密钥认证模式 */}
+            {authMode === 'apikey' && (
+              <>
+                {/* API Key */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    API Key *
+                  </label>
+                  <input
+                    type='password'
+                    value={formData.ApiKey}
+                    onChange={(e) => setFormData({ ...formData, ApiKey: e.target.value })}
+                    placeholder='输入 Emby API Key'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  />
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    在 Emby 控制台的 API 密钥页面生成
+                  </p>
+                </div>
 
-            {/* 密码 */}
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                密码（可选）
-              </label>
-              <input
-                type='password'
-                value={formData.Password}
-                onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
-                placeholder='Emby 密码'
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
+                {/* 用户 ID */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    用户 ID *
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.UserId}
+                    onChange={(e) => setFormData({ ...formData, UserId: e.target.value })}
+                    placeholder='aab507c58e874de6a9bd12388d72f4d2'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  />
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    从你的 Emby 抓包数据中获取用户 ID，通常在 URL 中如 /Users/[userId]/...
+                  </p>
+                </div>
+              </>
+            )}
 
-            {/* 用户 ID */}
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                用户 ID（使用 API Key 时必填）
-              </label>
-              <input
-                type='text'
-                value={formData.UserId}
-                onChange={(e) => setFormData({ ...formData, UserId: e.target.value })}
-                placeholder='aab507c58e874de6a9bd12388d72f4d2'
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                从你的 Emby 抓包数据中获取用户 ID，通常在 URL 中如 /Users/[userId]/...
-              </p>
-            </div>
+            {/* 账号认证模式 */}
+            {authMode === 'password' && (
+              <>
+                {/* 用户名 */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    用户名 *
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.Username}
+                    onChange={(e) => setFormData({ ...formData, Username: e.target.value })}
+                    placeholder='Emby 用户名'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  />
+                </div>
+
+                {/* 密码 */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    密码（可选）
+                  </label>
+                  <input
+                    type='password'
+                    value={formData.Password}
+                    onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
+                    placeholder='Emby 密码（如果账号没有密码可留空）'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  />
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    如果 Emby 账号没有设置密码，可以留空
+                  </p>
+                </div>
+              </>
+            )}
 
             {/* 启用开关 */}
             <div className='flex items-center justify-between'>
@@ -10252,6 +10328,7 @@ const AIConfigComponent = ({
   const [enableHomepageEntry, setEnableHomepageEntry] = useState(true);
   const [enableVideoCardEntry, setEnableVideoCardEntry] = useState(true);
   const [enablePlayPageEntry, setEnablePlayPageEntry] = useState(true);
+  const [enableAIComments, setEnableAIComments] = useState(false);
 
   // 权限控制
   const [allowRegularUsers, setAllowRegularUsers] = useState(true);
@@ -10282,6 +10359,7 @@ const AIConfigComponent = ({
       setEnableHomepageEntry(config.AIConfig.EnableHomepageEntry !== false);
       setEnableVideoCardEntry(config.AIConfig.EnableVideoCardEntry !== false);
       setEnablePlayPageEntry(config.AIConfig.EnablePlayPageEntry !== false);
+      setEnableAIComments(config.AIConfig.EnableAIComments || false);
       setAllowRegularUsers(config.AIConfig.AllowRegularUsers !== false);
       setTemperature(config.AIConfig.Temperature ?? 0.7);
       setMaxTokens(config.AIConfig.MaxTokens ?? 1000);
@@ -10315,6 +10393,7 @@ const AIConfigComponent = ({
             EnableHomepageEntry: enableHomepageEntry,
             EnableVideoCardEntry: enableVideoCardEntry,
             EnablePlayPageEntry: enablePlayPageEntry,
+            EnableAIComments: enableAIComments,
             AllowRegularUsers: allowRegularUsers,
             Temperature: temperature,
             MaxTokens: maxTokens,
@@ -10584,6 +10663,7 @@ const AIConfigComponent = ({
           { key: 'homepage', label: '首页入口', desc: '在首页显示AI问片入口', state: enableHomepageEntry, setState: setEnableHomepageEntry },
           { key: 'videocard', label: '视频卡片入口', desc: '在视频卡片菜单中显示AI问片选项', state: enableVideoCardEntry, setState: setEnableVideoCardEntry },
           { key: 'playpage', label: '播放页入口', desc: '在视频播放页显示AI问片功能', state: enablePlayPageEntry, setState: setEnablePlayPageEntry },
+          { key: 'aicomments', label: 'AI评论功能', desc: '在播放页生成AI评论（独立于豆瓣评论）', state: enableAIComments, setState: setEnableAIComments },
         ].map((item) => (
           <div key={item.key} className='flex items-center justify-between py-2'>
             <div>
@@ -10857,6 +10937,53 @@ const LiveSourceConfig = ({
     });
   };
 
+  const handleSetProxyMode = (key: string, mode: 'full' | 'm3u8-only' | 'direct') => {
+    withLoading(`setLiveProxyMode_${key}`, async () => {
+      // 保存旧值用于回滚
+      const oldMode = liveSources.find((s) => s.key === key)?.proxyMode;
+
+      // 乐观更新本地状态
+      setLiveSources((prev) =>
+        prev.map((s) =>
+          s.key === key ? { ...s, proxyMode: mode } : s
+        )
+      );
+
+      try {
+        const response = await fetch('/api/admin/live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set_proxy_mode',
+            key,
+            proxyMode: mode,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('设置代理模式失败');
+        }
+
+        // 成功后刷新配置
+        await refreshConfig();
+      } catch (error) {
+        // 失败时回滚本地状态
+        setLiveSources((prev) =>
+          prev.map((s) =>
+            s.key === key ? { ...s, proxyMode: oldMode } : s
+          )
+        );
+        showError(
+          error instanceof Error ? error.message : '设置代理模式失败',
+          showAlert
+        );
+        throw error;
+      }
+    }).catch(() => {
+      console.error('操作失败', 'set_proxy_mode', key);
+    });
+  };
+
   const handleDelete = (key: string) => {
     withLoading(`deleteLiveSource_${key}`, () =>
       callLiveSourceApi({ action: 'delete', key })
@@ -11032,6 +11159,24 @@ const LiveSourceConfig = ({
           >
             {!liveSource.disabled ? '启用中' : '已禁用'}
           </span>
+        </td>
+        <td className='px-6 py-4 whitespace-nowrap'>
+          <select
+            value={liveSource.proxyMode || 'full'}
+            onChange={(e) => {
+              handleSetProxyMode(liveSource.key, e.target.value as 'full' | 'm3u8-only' | 'direct');
+            }}
+            disabled={isLoading(`setLiveProxyMode_${liveSource.key}`)}
+            className={`px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+              isLoading(`setLiveProxyMode_${liveSource.key}`)
+                ? 'opacity-50 cursor-not-allowed'
+                : 'cursor-pointer'
+            }`}
+          >
+            <option value='full'>全量代理</option>
+            <option value='m3u8-only'>仅代理m3u8</option>
+            <option value='direct'>直连</option>
+          </select>
         </td>
         <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
           <button
@@ -11339,6 +11484,9 @@ const LiveSourceConfig = ({
               </th>
               <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                 状态
+              </th>
+              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                代理模式
               </th>
               <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                 操作

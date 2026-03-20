@@ -115,19 +115,23 @@ export class EmbyClient {
     // 如果有 AuthToken，假设它是有效的
     if (this.authToken) return;
 
-    // 如果有用户名和密码，自动认证
-    if (this.username && this.password) {
-      const authResult = await this.authenticate(this.username, this.password);
+    // 如果有用户名，自动认证（密码可选）
+    if (this.username) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
     }
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(includeContentType: boolean = false): Record<string, string> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'User-Agent': this.customUserAgent,
     };
+
+    // 只在需要时添加 Content-Type（POST/PUT 请求）
+    if (includeContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (this.apiKey) {
       headers['X-Emby-Token'] = this.apiKey;
@@ -141,7 +145,7 @@ export class EmbyClient {
   async authenticate(username: string, password: string): Promise<{ AccessToken: string; User: { Id: string } }> {
     const url = `${this.serverUrl}/Users/AuthenticateByName`;
 
-    const params = new URLSearchParams({
+    const body = JSON.stringify({
       Username: username,
       Pw: password,
     });
@@ -149,11 +153,11 @@ export class EmbyClient {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'X-Emby-Authorization': 'MediaBrowser Client="LunaTV", Device="Web", DeviceId="lunatv-web", Version="1.0.0"',
         'User-Agent': this.customUserAgent,
       },
-      body: params.toString(),
+      body: body,
     });
 
     if (!response.ok) {
@@ -195,8 +199,8 @@ export class EmbyClient {
     const response = await fetch(url);
 
     // 如果是 401 错误且有用户名密码，尝试重新认证
-    if (response.status === 401 && this.username && this.password && !this.apiKey) {
-      const authResult = await this.authenticate(this.username, this.password);
+    if (response.status === 401 && this.username && !this.apiKey) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
 
@@ -244,7 +248,7 @@ export class EmbyClient {
     // 添加认证参数
     const token = this.apiKey || this.authToken;
     if (token) {
-      searchParams.set('X-Emby-Token', token);
+      searchParams.set('api_key', token);
     }
 
     const url = `${this.serverUrl}/Users/${this.userId}/Items?${searchParams.toString()}`;
@@ -252,13 +256,13 @@ export class EmbyClient {
     const response = await fetch(url);
 
     // 如果是 401 错误且有用户名密码，尝试重新认证
-    if (response.status === 401 && this.username && this.password && !this.apiKey) {
-      const authResult = await this.authenticate(this.username, this.password);
+    if (response.status === 401 && this.username && !this.apiKey) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
 
       // 重试请求
-      searchParams.set('X-Emby-Token', this.authToken);
+      searchParams.set('api_key', this.authToken);
       const retryUrl = `${this.serverUrl}/Users/${this.userId}/Items?${searchParams.toString()}`;
       const retryResponse = await fetch(retryUrl);
 
@@ -290,8 +294,8 @@ export class EmbyClient {
     const response = await fetch(url);
 
     // 如果是 401 错误且有用户名密码，尝试重新认证
-    if (response.status === 401 && this.username && this.password && !this.apiKey) {
-      const authResult = await this.authenticate(this.username, this.password);
+    if (response.status === 401 && this.username && !this.apiKey) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
 
@@ -326,8 +330,8 @@ export class EmbyClient {
     const response = await fetch(url);
 
     // 如果是 401 错误且有用户名密码，尝试重新认证
-    if (response.status === 401 && this.username && this.password && !this.apiKey) {
-      const authResult = await this.authenticate(this.username, this.password);
+    if (response.status === 401 && this.username && !this.apiKey) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
 
@@ -377,8 +381,8 @@ export class EmbyClient {
     const response = await fetch(url);
 
     // 如果是 401 错误且有用户名密码，尝试重新认证
-    if (response.status === 401 && this.username && this.password && !this.apiKey) {
-      const authResult = await this.authenticate(this.username, this.password);
+    if (response.status === 401 && this.username && !this.apiKey) {
+      const authResult = await this.authenticate(this.username, this.password || '');
       this.authToken = authResult.AccessToken;
       this.userId = authResult.User.Id;
 
@@ -426,15 +430,17 @@ export class EmbyClient {
     }
   }
 
-  getImageUrl(itemId: string, imageType: 'Primary' | 'Backdrop' | 'Logo' = 'Primary', maxWidth?: number, proxyToken?: string): string {
-    // 如果启用了代理播放且提供了 token，返回代理 URL
-    if (this.proxyPlay && proxyToken) {
+  getImageUrl(itemId: string, imageType: 'Primary' | 'Backdrop' | 'Logo' = 'Primary', maxWidth?: number, proxyToken?: string, forceDirectUrl = false): string {
+    // 如果启用了代理播放且不是强制获取直接URL，返回代理 URL
+    if (this.proxyPlay && !forceDirectUrl) {
+      // 使用固定的token占位符，实际验证在服务端进行
+      const subscribeToken = proxyToken || 'proxy';
       const params = new URLSearchParams();
       params.set('imageType', imageType);
       if (maxWidth) params.set('maxWidth', maxWidth.toString());
       if (this.embyKey) params.set('embyKey', this.embyKey);
 
-      return `/api/emby/image/${proxyToken}/${itemId}?${params.toString()}`;
+      return `/api/emby/image/${subscribeToken}/${itemId}?${params.toString()}`;
     }
 
     // 否则返回直连 URL

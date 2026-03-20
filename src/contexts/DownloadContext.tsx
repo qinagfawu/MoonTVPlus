@@ -21,7 +21,7 @@ interface DownloadContextType {
   ) => Promise<void>;
   startTask: (taskId: string) => void;
   pauseTask: (taskId: string) => void;
-  cancelTask: (taskId: string) => void;
+  cancelTask: (taskId: string) => Promise<void>;
   retryFailedSegments: (taskId: string) => void;
   getProgress: (taskId: string) => number;
   downloadingCount: number;
@@ -509,8 +509,8 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
     startNextPendingTask(downloader);
   }, [downloader, startNextPendingTask]);
 
-  const cancelTask = useCallback((taskId: string) => {
-    downloader.cancelTask(taskId);
+  const cancelTask = useCallback(async (taskId: string) => {
+    await downloader.cancelTask(taskId);
     setTasks(downloader.getAllTasks());
     // 保存任务状态到 IndexedDB（删除被取消的任务）
     saveTasks(downloader.getAllTasks());

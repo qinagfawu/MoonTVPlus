@@ -73,13 +73,25 @@ function transformToSSE(
 
   return new ReadableStream({
     async start(controller) {
+      let buffer = ''; // 缓冲区，用于保存不完整的行
+      let contentBuffer = ''; // 累积的内容，用于处理跨chunk的thinking标签
+      let inThinkingBlock = false; // 是否在thinking块内
+
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+          // 将新chunk与缓冲区拼接
+          const text = buffer + chunk;
+          // 按换行符分割，最后一个元素可能是不完整的行
+          const parts = text.split('\n');
+          // 保存最后一个不完整的行到缓冲区
+          buffer = parts.pop() || '';
+
+          // 处理完整的行
+          const lines = parts.filter((line) => line.trim() !== '');
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -113,15 +125,71 @@ function transformToSSE(
                 }
 
                 if (text) {
-                  controller.enqueue(
-                    new TextEncoder().encode(`data: ${JSON.stringify({ text })}\n\n`)
-                  );
+                  // 累积内容并处理thinking标签
+                  contentBuffer += text;
+
+                  // 检查是否进入thinking块
+                  if (contentBuffer.includes('<think>')) {
+                    inThinkingBlock = true;
+                  }
+
+                  // 检查是否退出thinking块
+                  if (inThinkingBlock && contentBuffer.includes('</think>')) {
+                    // 移除thinking块内容
+                    contentBuffer = contentBuffer.replace(/<think>[\s\S]*?<\/think>/g, '');
+                    inThinkingBlock = false;
+                  }
+
+                  // 只有在不在thinking块内时才输出内容
+                  if (!inThinkingBlock) {
+                    // 输出非thinking部分的内容
+                    const outputText = contentBuffer;
+                    if (outputText) {
+                      controller.enqueue(
+                        new TextEncoder().encode(`data: ${JSON.stringify({ text: outputText })}\n\n`)
+                      );
+                      contentBuffer = ''; // 清空已输出的内容
+                    }
+                  }
                 }
               } catch (e) {
                 // 只在非空数据解析失败时打印错误
                 if (data.length > 0) {
                   console.error('Parse stream chunk error:', e, 'Data:', data.substring(0, 100));
                 }
+              }
+            }
+          }
+        }
+
+        // 处理缓冲区中剩余的数据
+        if (buffer.trim()) {
+          const line = buffer.trim();
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data && data !== '[DONE]') {
+              try {
+                const json = JSON.parse(data);
+                let text = '';
+                if (provider === 'claude') {
+                  if (json.type === 'content_block_delta') {
+                    text = json.delta?.text || '';
+                  }
+                } else {
+                  text = json.choices?.[0]?.delta?.content || '';
+                }
+                if (text) {
+                  contentBuffer += text;
+                  // 最后清理一次thinking标签
+                  contentBuffer = contentBuffer.replace(/<think>[\s\S]*?<\/think>/g, '');
+                  if (contentBuffer) {
+                    controller.enqueue(
+                      new TextEncoder().encode(`data: ${JSON.stringify({ text: contentBuffer })}\n\n`)
+                    );
+                  }
+                }
+              } catch (e) {
+                console.error('Parse final buffer error:', e);
               }
             }
           }
@@ -261,7 +329,10 @@ export async function POST(request: NextRequest) {
       // 非流式响应：等待完整响应后返回JSON
       const response = result as Response;
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
+      let content = data.choices?.[0]?.message?.content || '';
+
+      // 移除thinking标签内容
+      content = content.replace(/<think>[\s\S]*?<\/think>/g, '');
 
       return NextResponse.json({ content });
     }
