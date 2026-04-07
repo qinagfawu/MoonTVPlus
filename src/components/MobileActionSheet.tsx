@@ -21,6 +21,7 @@ interface MobileActionSheetProps {
   sources?: string[]; // 播放源信息
   isAggregate?: boolean; // 是否为聚合内容
   sourceName?: string; // 播放源名称
+  directLinkUrl?: string; // 直链播放完整链接
   currentEpisode?: number; // 当前集数
   totalEpisodes?: number; // 总集数
   origin?: 'vod' | 'live';
@@ -36,6 +37,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   sources,
   isAggregate,
   sourceName,
+  directLinkUrl,
   currentEpisode,
   totalEpisodes,
   origin = 'vod',
@@ -253,6 +255,11 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
                   </span>
                 )}
               </div>
+              {directLinkUrl && (
+                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 break-all">
+                  {directLinkUrl}
+                </p>
+              )}
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 选择操作
               </p>

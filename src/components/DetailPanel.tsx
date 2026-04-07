@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Clock, Film,Globe, Star, Tag, Users, X } from 'lucide-react';
+import { Calendar, Clock, ExternalLink, Film,Globe, Star, Tag, Users, X } from 'lucide-react';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -101,11 +101,37 @@ const DetailPanel: React.FC<DetailPanelProps> = ({
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>('');
 
+
   // 数据源状态管理
   const [currentSource, setCurrentSource] = useState<'douban' | 'bangumi' | 'cms' | 'tmdb'>('tmdb');
   const [originalSource, setOriginalSource] = useState<'douban' | 'bangumi' | 'cms' | 'tmdb'>('tmdb');
   const [isUsingTmdb, setIsUsingTmdb] = useState(false);
   const [originalDetailData, setOriginalDetailData] = useState<DetailData | null>(null);
+
+  const getExternalUrl = () => {
+    if (currentSource === 'douban' && doubanId) {
+      return `https://movie.douban.com/subject/${doubanId}`;
+    }
+
+    if (currentSource === 'bangumi') {
+      const actualBangumiId = bangumiId || doubanId;
+      if (actualBangumiId) {
+        return `https://bgm.tv/subject/${actualBangumiId}`;
+      }
+    }
+
+    if (currentSource === 'tmdb') {
+      const actualTmdbId = detailData?.tmdbId || tmdbId;
+      const actualMediaType = detailData?.mediaType || type;
+      if (actualTmdbId) {
+        return `https://www.themoviedb.org/${actualMediaType}/${actualTmdbId}`;
+      }
+    }
+
+    return null;
+  };
+
+  const externalUrl = getExternalUrl();
 
   // 拖动滚动状态
   const [isDragging, setIsDragging] = useState(false);
@@ -874,12 +900,26 @@ const DetailPanel: React.FC<DetailPanelProps> = ({
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-10">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">详情</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
-          >
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            {externalUrl && (
+              <button
+                onClick={() => window.open(externalUrl, '_blank', 'noopener,noreferrer')}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+                title="打开外部页面"
+                aria-label="打开外部页面"
+              >
+                <ExternalLink size={18} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+              title="关闭"
+              aria-label="关闭"
+            >
+              <X size={20} className="text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* 内容区域 */}
@@ -1364,12 +1404,26 @@ const DetailPanel: React.FC<DetailPanelProps> = ({
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-10">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">详情</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
-          >
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            {externalUrl && (
+              <button
+                onClick={() => window.open(externalUrl, '_blank', 'noopener,noreferrer')}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+                title="打开外部页面"
+                aria-label="打开外部页面"
+              >
+                <ExternalLink size={18} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+              title="关闭"
+              aria-label="关闭"
+            >
+              <X size={20} className="text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* 内容区域 */}

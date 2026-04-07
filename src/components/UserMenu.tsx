@@ -23,6 +23,7 @@ import {
   MoveDown,
   MoveUp,
   Package,
+  Router as RouterIcon,
   Rss,
   Settings,
   Shield,
@@ -78,12 +79,12 @@ export const UserMenu: React.FC = () => {
   // 订阅相关状态
   const [subscribeEnabled, setSubscribeEnabled] = useState(false);
   const [subscribeUrl, setSubscribeUrl] = useState('');
-  const [subscribeUrlWithAdFilter, setSubscribeUrlWithAdFilter] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
-  const [copySuccessAdFilter, setCopySuccessAdFilter] = useState(false);
   const [tvboxToken, setTvboxToken] = useState('');
   const [isResettingToken, setIsResettingToken] = useState(false);
   const [isLoadingSubscribeUrl, setIsLoadingSubscribeUrl] = useState(false);
+  const [subscribeAdFilterEnabled, setSubscribeAdFilterEnabled] = useState(false);
+  const [subscribeYellowFilterEnabled, setSubscribeYellowFilterEnabled] = useState(false);
 
   // Body 滚动锁定 - 使用 overflow 方式避免布局问题
   useEffect(() => {
@@ -156,7 +157,7 @@ export const UserMenu: React.FC = () => {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => undefined,
   });
 
   // 折叠面板状态
@@ -323,13 +324,7 @@ export const UserMenu: React.FC = () => {
         const token = data.token;
         setTvboxToken(token);
 
-        // 前端拼接订阅链接
-        const currentOrigin = window.location.origin;
-        const standardUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}`;
-        const adFilterUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}&adFilter=true`;
-
-        setSubscribeUrl(standardUrl);
-        setSubscribeUrlWithAdFilter(adFilterUrl);
+        setSubscribeUrl(buildSubscribeUrl(token, subscribeAdFilterEnabled, subscribeYellowFilterEnabled));
       }
     } catch (error) {
       console.error('获取订阅URL失败:', error);
@@ -359,13 +354,7 @@ export const UserMenu: React.FC = () => {
             const token = data.token;
             setTvboxToken(token);
 
-            // 更新订阅链接
-            const currentOrigin = window.location.origin;
-            const standardUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}`;
-            const adFilterUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}&adFilter=true`;
-
-            setSubscribeUrl(standardUrl);
-            setSubscribeUrlWithAdFilter(adFilterUrl);
+            setSubscribeUrl(buildSubscribeUrl(token, subscribeAdFilterEnabled, subscribeYellowFilterEnabled));
 
             if (messageEl) {
               messageEl.textContent = '订阅token已重置！';
@@ -396,6 +385,19 @@ export const UserMenu: React.FC = () => {
         }
       },
     });
+  };
+
+  const buildSubscribeUrl = (token: string, adFilter: boolean, yellowFilter: boolean) => {
+    const currentOrigin = window.location.origin;
+    const url = new URL('/api/tvbox/subscribe', currentOrigin);
+    url.searchParams.set('token', token);
+    if (adFilter) {
+      url.searchParams.set('adFilter', 'true');
+    }
+    if (yellowFilter) {
+      url.searchParams.set('yellowFilter', 'true');
+    }
+    return url.toString();
   };
 
   // 获取认证信息和存储类型
@@ -819,7 +821,6 @@ export const UserMenu: React.FC = () => {
   const handleCloseSubscribe = () => {
     setIsSubscribeOpen(false);
     setCopySuccess(false);
-    setCopySuccessAdFilter(false);
   };
 
   const handleCopySubscribeUrl = async () => {
@@ -833,18 +834,11 @@ export const UserMenu: React.FC = () => {
       console.error('复制失败:', error);
     }
   };
-
-  const handleCopySubscribeUrlWithAdFilter = async () => {
-    try {
-      await navigator.clipboard.writeText(subscribeUrlWithAdFilter);
-      setCopySuccessAdFilter(true);
-      setTimeout(() => {
-        setCopySuccessAdFilter(false);
-      }, 2000);
-    } catch (error) {
-      console.error('复制失败:', error);
-    }
-  };
+  
+  useEffect(() => {
+    if (!tvboxToken || !isSubscribeOpen) return;
+    setSubscribeUrl(buildSubscribeUrl(tvboxToken, subscribeAdFilterEnabled, subscribeYellowFilterEnabled));
+  }, [tvboxToken, subscribeAdFilterEnabled, subscribeYellowFilterEnabled, isSubscribeOpen]);
 
   const handleSubmitChangePassword = async () => {
     setPasswordError('');
@@ -2833,18 +2827,18 @@ export const UserMenu: React.FC = () => {
           <div className='space-y-4'>
             {isLoadingSubscribeUrl ? (
               <>
-                {/* 加载骨架 - 订阅链接（标准） */}
+                {/* 加载骨架 - 开关 */}
                 <div>
-                  <div className='h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse'></div>
-                  <div className='flex gap-2'>
-                    <div className='flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
-                    <div className='w-20 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                  <div className='h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-3 animate-pulse'></div>
+                  <div className='space-y-2'>
+                    <div className='h-14 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                    <div className='h-14 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
                   </div>
                 </div>
 
-                {/* 加载骨架 - 订阅链接（去广告） */}
+                {/* 加载骨架 - 订阅链接 */}
                 <div>
-                  <div className='h-5 w-36 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse'></div>
+                  <div className='h-5 w-28 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse'></div>
                   <div className='flex gap-2'>
                     <div className='flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
                     <div className='w-20 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
@@ -2860,10 +2854,51 @@ export const UserMenu: React.FC = () => {
               </>
             ) : (
               <>
-                {/* 订阅链接（标准） */}
+                <div className='space-y-3'>
+                  <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                    订阅选项
+                  </h4>
+
+                  <button
+                    type='button'
+                    onClick={() => setSubscribeAdFilterEnabled((prev) => !prev)}
+                    className='w-full flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left bg-gray-50 dark:bg-gray-800/70'
+                  >
+                    <div>
+                      <div className='text-sm font-medium text-gray-800 dark:text-gray-200'>
+                        去广告
+                      </div>
+                      <div className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        开启后通过代理处理播放链接，兼容性可能略低
+                      </div>
+                    </div>
+                    <div className={`relative h-6 w-11 rounded-full transition-colors ${subscribeAdFilterEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                      <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${subscribeAdFilterEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </div>
+                  </button>
+
+                  <button
+                    type='button'
+                    onClick={() => setSubscribeYellowFilterEnabled((prev) => !prev)}
+                    className='w-full flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left bg-gray-50 dark:bg-gray-800/70'
+                  >
+                    <div>
+                      <div className='text-sm font-medium text-gray-800 dark:text-gray-200'>
+                        黄色过滤
+                      </div>
+                      <div className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        开启后同样走代理，并在代理搜索时过滤黄色内容
+                      </div>
+                    </div>
+                    <div className={`relative h-6 w-11 rounded-full transition-colors ${subscribeYellowFilterEnabled ? 'bg-yellow-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                      <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${subscribeYellowFilterEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </div>
+                  </button>
+                </div>
+
                 <div>
                   <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    订阅链接（标准）
+                    订阅链接
                   </h4>
                   <div className='flex gap-2'>
                     <input
@@ -2880,31 +2915,11 @@ export const UserMenu: React.FC = () => {
                       {copySuccess ? '已复制' : '复制'}
                     </button>
                   </div>
-                </div>
-
-                {/* 订阅链接（去广告） */}
-                <div>
-                  <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    订阅链接（去广告）
-                  </h4>
-                  <div className='flex gap-2'>
-                    <input
-                      type='text'
-                      className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                      value={subscribeUrlWithAdFilter}
-                      readOnly
-                    />
-                    <button
-                      onClick={handleCopySubscribeUrlWithAdFilter}
-                      className='px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2 whitespace-nowrap'
-                    >
-                      <Copy className='w-4 h-4' />
-                      {copySuccessAdFilter ? '已复制' : '复制'}
-                    </button>
-                  </div>
-                  <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                    💡 去广告需要经过服务器代理，某些源可能因为区域或兼容问题无法播放
-                  </p>
+                  {(subscribeAdFilterEnabled || subscribeYellowFilterEnabled) && (
+                    <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                      💡 代理模式已开启，某些源可能因为区域或兼容问题无法播放
+                    </p>
+                  )}
                 </div>
 
                 {/* 重置Token按钮 */}
@@ -3558,6 +3573,38 @@ export const UserMenu: React.FC = () => {
                       target='_blank'
                       rel='noopener noreferrer'
                       className='inline-flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg transition-colors'
+                    >
+                      <Download className='w-4 h-4' />
+                      下载
+                      <ExternalLink className='w-3 h-3' />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* 私人影库转码器 */}
+              <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700'>
+                <div className='flex items-start gap-4'>
+                  <div className='flex-shrink-0 relative'>
+                    <div className='w-16 h-16 rounded-xl bg-amber-500 flex items-center justify-center shadow-sm'>
+                      <RouterIcon className='w-8 h-8 text-white' />
+                    </div>
+                    <span className='absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded'>
+                      MKV转码
+                    </span>
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <h4 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2'>
+                      私人影库转码器
+                    </h4>
+                    <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
+                      为私人影库中的 MKV 视频提供转码播放能力，可解析内封字幕并解决部分视频无音频问题，但通常需要较高的本机性能配置。
+                    </p>
+                    <a
+                      href='https://github.com/mtvpls/moontvplus-transcoder/tags'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors'
                     >
                       <Download className='w-4 h-4' />
                       下载

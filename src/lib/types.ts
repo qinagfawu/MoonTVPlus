@@ -177,6 +177,7 @@ export interface SearchResult {
   episodes_titles: string[];
   source: string;
   source_name: string;
+  weight?: number; // 播放源权重（来自后台配置，用于排序和优选评分）
   class?: string;
   year: string;
   desc?: string;

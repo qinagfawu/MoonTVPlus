@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
-import { CURRENT_VERSION } from '@/lib/version'
+import { CURRENT_VERSION } from '@/lib/version';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic'; // 禁用缓存
@@ -13,14 +13,22 @@ export async function GET(request: NextRequest) {
 
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
-  // 观影室配置从环境变量读取
+  const isLiteMode = process.env.MOONTV_LITE === 'true';
+
+  // Lite 镜像不暴露内置观影室能力，避免前端尝试连接本地 Socket.IO 服务
   // 注意：不要暴露 externalServerAuth 到前端，这是敏感凭据
-  const watchRoomConfig = {
-    enabled: process.env.WATCH_ROOM_ENABLED === 'true',
-    serverType: (process.env.WATCH_ROOM_SERVER_TYPE as 'internal' | 'external') || 'internal',
-    externalServerUrl: process.env.WATCH_ROOM_EXTERNAL_SERVER_URL,
-    // externalServerAuth 不应该暴露给前端
-  };
+  const watchRoomConfig = isLiteMode
+    ? {
+        enabled: false,
+        serverType: 'external' as const,
+        externalServerUrl: undefined,
+      }
+    : {
+        enabled: process.env.WATCH_ROOM_ENABLED === 'true',
+        serverType:
+          (process.env.WATCH_ROOM_SERVER_TYPE as 'internal' | 'external') || 'internal',
+        externalServerUrl: process.env.WATCH_ROOM_EXTERNAL_SERVER_URL,
+      };
 
   // 如果使用 localStorage，返回默认配置
   if (storageType === 'localstorage') {

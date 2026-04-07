@@ -142,6 +142,9 @@ export async function getDanmakuById(
   episodeId: number,
   title?: string,
   episodeIndex?: number,
+  options?: {
+    bypassCache?: boolean;
+  },
   metadata?: {
     animeId?: number;
     animeTitle?: string;
@@ -152,13 +155,15 @@ export async function getDanmakuById(
 ): Promise<DanmakuComment[]> {
   try {
     // 1. 如果提供了 title 和 episodeIndex，先尝试从缓存读取
-    if (title && episodeIndex !== undefined) {
+    if (title && episodeIndex !== undefined && !options?.bypassCache) {
       const cachedData = await getDanmakuFromCache(title, episodeIndex);
       if (cachedData) {
         console.log(`[弹幕缓存] 使用缓存: title=${title}, episodeIndex=${episodeIndex}, 数量=${cachedData.comments.length}`);
         return cachedData.comments;
       }
       console.log(`[弹幕缓存] 缓存未命中，从 API 获取: title=${title}, episodeIndex=${episodeIndex}`);
+    } else if (title && episodeIndex !== undefined && options?.bypassCache) {
+      console.log(`[弹幕缓存] 手动选择，跳过缓存读取: title=${title}, episodeIndex=${episodeIndex}, episodeId=${episodeId}`);
     } else {
       console.log(`[弹幕缓存] 未提供 title/episodeIndex，跳过缓存: episodeId=${episodeId}`);
     }

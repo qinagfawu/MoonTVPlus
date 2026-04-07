@@ -11,6 +11,31 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "216.0.0",
+    date: "2026-03-30",
+    added: [
+    "新增视频源脚本",
+    "私人影库增加本机转码功能",
+    "tvbox订阅增加黄色过滤",
+    "播放记录显示直链播放的链接",
+    "磁链增加代理配置",
+    "弹幕选集面板增强",
+    "电视直播聚合同名节目",
+    "douban页面大屏自动预加载第二页",
+    "增加docker lite镜像",
+    "详情面板增加外部跳转"
+    ],
+    changed: [
+    "GlobalError自动消失",
+    "站点配置子服务配置项折叠"
+    ],
+    fixed: [
+    "修复手动选择弹幕因缓存问题无法变更弹幕集数",
+    "修复当前集拉回开头显示恢复进度按钮",
+    "修复视频源权重的一些问题"
+    ]
+  },
+  {
     version: "215.0.0",
     date: "2026-03-20",
     added: [
